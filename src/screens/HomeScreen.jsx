@@ -4,11 +4,11 @@ import IconButton from "../../components/ui/IconButton";
 
 const models = ["GTX600SB", "GTX500", "GTX700", "GTX800", "GTX900"];
 
-const HomeScreen: React.FC = () => {
+const HomeScreen = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredModels, setFilteredModels] = useState(models);
 
-  const handleSearch = (text: string) => {
+  const handleSearch = (text) => {
     setSearchQuery(text);
     if (text === "") {
       setFilteredModels(models);
@@ -19,21 +19,22 @@ const HomeScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {}
+      {/* Header Section */}
       <View style={styles.header}>
         <Image source={require("../../assets/icons/printer.png")} style={styles.headerIcon} />
-        {}
-      <TextInput
-        style={styles.searchBar}
-        placeholder="Enter model name..."
-        value={searchQuery}
-        onChangeText={handleSearch}
-      />
+        
+        {/* Search Bar */}
+        <TextInput
+          style={styles.searchBar}
+          placeholder="Enter model name..."
+          value={searchQuery}
+          onChangeText={handleSearch}
+        />
+
         <TouchableOpacity>
           <Image source={require("../../assets/icons/info.png")} style={styles.headerIcon} />
         </TouchableOpacity>
       </View>
-
 
       {/* Model List */}
       {searchQuery !== "" && (
