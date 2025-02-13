@@ -45,7 +45,7 @@ export default function UserManualScreen() {
               <View style={styles.documentItem}>
                 <Text style={styles.categoryTitle}>{item.category}</Text>
                 <TouchableOpacity style={styles.downloadButton}>
-                  <Image source={require("../../assets/download.png")} style={styles.downloadIcon} />
+                  <Image source={require("../../assets/icons/download.png")} style={styles.downloadIcon} />
                   <Text style={styles.documentText}>{item.name}</Text>
                 </TouchableOpacity>
               </View>
