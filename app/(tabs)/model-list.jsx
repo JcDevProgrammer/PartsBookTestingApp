@@ -17,87 +17,114 @@ import { storage } from "../../src/screens/config/firebaseConfig";
 export default function ModelListScreen() {
   const router = useRouter();
 
-  // Store a list of subfolders (prefixes) at the root of the bucket
-  const [folders, setFolders] = useState([]);
-  // Track which folder is currently expanded
-  const [expandedFolder, setExpandedFolder] = useState(null);
-  // For storing each folder's files: { [folderName]: [ { name, url } ] }
-  const [folderFiles, setFolderFiles] = useState({});
-  // Loading states
-  const [loading, setLoading] = useState(true);
-  const [loadingFolder, setLoadingFolder] = useState(null);
+  // Holds all folders with their files
+  const [folderData, setFolderData] = useState([]);
+  const [loadingRoot, setLoadingRoot] = useState(true);
 
   // Search bar state
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Track expanded folder by folderName
+  const [expandedFolder, setExpandedFolder] = useState(null);
+
   useEffect(() => {
-    // On mount, list subfolders in the root of your bucket
-    fetchRoot();
+    fetchAllFilesConcurrently();
   }, []);
 
-  // List the root of the bucket
-  const fetchRoot = async () => {
+  // Recursively fetch all files from every subfolder using BFS
+  const fetchAllFilesConcurrently = async () => {
     try {
-      setLoading(true);
-      const rootRef = ref(storage, ""); // root
-      const result = await listAll(rootRef);
-      // result.prefixes => subfolders
-      // result.items => files at root
-      const folderNames = result.prefixes.map((prefixRef) => prefixRef.name);
-      setFolders(folderNames);
-    } catch (err) {
-      console.error("Error listing root of bucket:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+      setLoadingRoot(true);
+      const rootRef = ref(storage, "");
+      const rootResult = await listAll(rootRef);
 
-  // Fetch all files in a specific subfolder
-  const fetchFilesInFolder = async (folderName) => {
-    try {
-      setLoadingFolder(folderName);
-      // e.g., "BROTHER HSM/"
-      const folderRef = ref(storage, folderName + "/");
-      const result = await listAll(folderRef);
+      // Process root-level files
+      const rootFiles = await Promise.all(
+        rootResult.items.map(async (itemRef) => {
+          const url = await getDownloadURL(itemRef);
+          return { name: itemRef.name, path: itemRef.fullPath, url };
+        })
+      );
 
-      const filePromises = result.items.map(async (itemRef) => {
-        const url = await getDownloadURL(itemRef);
-        return { name: itemRef.name, url };
+      // Process subfolders in parallel
+      const folderPromises = rootResult.prefixes.map(async (subfolderRef) => {
+        const folderName = subfolderRef.name;
+        const folderRef = ref(storage, folderName + "/");
+        const folderResult = await listAll(folderRef);
+        const files = await Promise.all(
+          folderResult.items.map(async (itemRef) => {
+            const url = await getDownloadURL(itemRef);
+            return { name: itemRef.name, path: itemRef.fullPath, url };
+          })
+        );
+        return { folderName, files };
       });
-      const files = await Promise.all(filePromises);
+      const subfolderData = await Promise.all(folderPromises);
 
-      setFolderFiles((prev) => ({ ...prev, [folderName]: files }));
-    } catch (err) {
-      console.error("Error fetching files for folder", folderName, err);
-    } finally {
-      setLoadingFolder(null);
-    }
-  };
-
-  // Toggle expand/collapse for a folder
-  const handleToggleFolder = (folderName) => {
-    if (expandedFolder === folderName) {
-      // Collapse
-      setExpandedFolder(null);
-    } else {
-      // Expand
-      setExpandedFolder(folderName);
-      // If we haven't fetched files for this folder yet, do so
-      if (!folderFiles[folderName]) {
-        fetchFilesInFolder(folderName);
+      // If there are files in the root, add them as a "Root" folder
+      if (rootFiles.length > 0) {
+        subfolderData.push({ folderName: "Root", files: rootFiles });
       }
+
+      // Define the sample manual file
+      const sampleManual = {
+        name: "Sample Manual.pdf",
+        path: "BROTHER HSM/3034D.PDF",
+        url: "https://firebasestorage.googleapis.com/v0/b/fir-domanapp-719a0.appspot.com/o/BROTHER%20HSM%2F3034D.PDF?alt=media&token=your-sample-token",
+      };
+
+      // Add the sample manual file into the "BROTHER HSM" folder if it exists,
+      // or create that folder if not present.
+      let foundBrotherHSM = false;
+      subfolderData.forEach((folder) => {
+        if (folder.folderName === "BROTHER HSM") {
+          if (!folder.files.some((file) => file.name === "Sample Manual.pdf")) {
+            folder.files.push(sampleManual);
+          }
+          foundBrotherHSM = true;
+        }
+      });
+      if (!foundBrotherHSM) {
+        subfolderData.push({
+          folderName: "BROTHER HSM",
+          files: [sampleManual],
+        });
+      }
+
+      setFolderData(subfolderData);
+    } catch (error) {
+      console.error("Error fetching files concurrently:", error);
+    } finally {
+      setLoadingRoot(false);
     }
   };
 
-  // Open file URL (PDF, etc.) in default viewer
-  const handleOpenPDF = (url) => {
+  // Filtering logic: if folder name matches, keep all its files; otherwise, keep only files that match.
+  const filteredFolderData = folderData
+    .map((folder) => {
+      const folderMatch = folder.folderName
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+      const matchingFiles = folder.files.filter((file) =>
+        file.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      if (folderMatch) {
+        return { ...folder };
+      } else if (matchingFiles.length > 0) {
+        return { ...folder, files: matchingFiles };
+      } else {
+        return null;
+      }
+    })
+    .filter((folder) => folder !== null);
+
+  const toggleFolder = (folderName) => {
+    setExpandedFolder((prev) => (prev === folderName ? null : folderName));
+  };
+
+  const handleOpenFile = (url) => {
     Linking.openURL(url);
   };
-
-  // Filter the folders by search query
-  const filteredFolders = folders.filter((folderName) =>
-    folderName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   return (
     <View style={styles.container}>
@@ -122,35 +149,38 @@ export default function ModelListScreen() {
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchBar}
-          placeholder="Search folders..."
+          placeholder="Search folder or file..."
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
       </View>
 
-      {/* MAIN CONTENT: List of subfolders */}
-      {loading ? (
+      {/* MAIN CONTENT */}
+      {loadingRoot ? (
         <ActivityIndicator
           size="large"
           color="#283593"
           style={{ marginTop: 20 }}
         />
-      ) : (
+      ) : filteredFolderData.length > 0 ? (
         <FlatList
-          data={filteredFolders}
-          keyExtractor={(item) => item}
-          renderItem={({ item }) => {
-            const isExpanded = expandedFolder === item;
-            const files = folderFiles[item] || [];
-
+          data={filteredFolderData}
+          keyExtractor={(item) => item.folderName}
+          renderItem={({ item: folder }) => {
+            const isExpanded = expandedFolder === folder.folderName;
             return (
-              <View style={styles.itemContainer}>
-                {/* Folder Row */}
+              <View style={styles.folderContainer}>
+                {/* Folder Header */}
                 <TouchableOpacity
-                  style={styles.itemRow}
-                  onPress={() => handleToggleFolder(item)}
+                  style={styles.folderRow}
+                  onPress={() => toggleFolder(folder.folderName)}
                 >
-                  <Text style={styles.itemText}>{item}</Text>
+                  <View style={styles.folderHeader}>
+                    <Text style={styles.folderTitle}>{folder.folderName}</Text>
+                    <Text style={styles.folderCount}>
+                      ({folder.files.length} items)
+                    </Text>
+                  </View>
                   <Image
                     source={require("../../assets/icons/arrow.png")}
                     style={[
@@ -159,41 +189,36 @@ export default function ModelListScreen() {
                     ]}
                   />
                 </TouchableOpacity>
-
-                {/* If expanded, show files */}
+                {/* Files List */}
                 {isExpanded && (
-                  <View style={styles.expandedContent}>
-                    {loadingFolder === item ? (
-                      <ActivityIndicator size="small" color="#283593" />
-                    ) : files.length > 0 ? (
-                      files.map((file, index) => (
-                        <TouchableOpacity
-                          key={index}
-                          style={styles.pdfItem}
-                          onPress={() => handleOpenPDF(file.url)}
-                        >
-                          <Text style={styles.pdfText}>{file.name}</Text>
-                        </TouchableOpacity>
-                      ))
-                    ) : (
-                      <Text style={styles.expandedText}>No manuals found.</Text>
-                    )}
+                  <View style={styles.fileList}>
+                    {folder.files.map((file, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        style={styles.fileItem}
+                        onPress={() => handleOpenFile(file.url)}
+                      >
+                        <Text style={styles.fileName}>{file.name}</Text>
+                        <Text style={styles.filePath}>{file.path}</Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 )}
               </View>
             );
           }}
         />
+      ) : (
+        <View style={styles.noMatchContainer}>
+          <Text style={styles.noMatchText}>No folders/files match.</Text>
+        </View>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#EDEDED",
-  },
+  container: { flex: 1, backgroundColor: "#EDEDED" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -203,20 +228,13 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     justifyContent: "space-between",
   },
-  headerIcon: {
-    width: 25,
-    height: 25,
-    tintColor: "#fff",
-  },
+  headerIcon: { width: 25, height: 25, tintColor: "#fff" },
   headerTitle: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "bold",
   },
-  searchContainer: {
-    padding: 10,
-    backgroundColor: "#EDEDED",
-  },
+  searchContainer: { padding: 10, backgroundColor: "#EDEDED" },
   searchBar: {
     backgroundColor: "#fff",
     paddingHorizontal: 10,
@@ -224,46 +242,54 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#ccc",
-    fontSize: 14,
+    fontSize: 16,
   },
-  itemContainer: {
+  folderContainer: {
     backgroundColor: "#fff",
     marginHorizontal: 10,
     marginTop: 10,
     borderRadius: 8,
     overflow: "hidden",
   },
-  itemRow: {
+  folderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: 15,
   },
-  itemText: {
-    fontSize: 16,
-    color: "#333",
+  folderHeader: {
+    flexDirection: "row",
+    alignItems: "center",
   },
-  arrowIcon: {
-    width: 20,
-    height: 20,
-    tintColor: "#333",
-  },
-  expandedContent: {
+  folderTitle: { fontSize: 16, color: "#333", fontWeight: "bold" },
+  folderCount: { fontSize: 14, color: "#666", marginLeft: 5 },
+  arrowIcon: { width: 20, height: 20, tintColor: "#333" },
+  fileList: {
     backgroundColor: "#f9f9f9",
     paddingHorizontal: 15,
     paddingVertical: 10,
   },
-  expandedText: {
-    fontSize: 14,
-    color: "#666",
-  },
-  pdfItem: {
+  fileItem: {
     paddingVertical: 5,
     borderBottomWidth: 1,
     borderBottomColor: "#ccc",
   },
-  pdfText: {
+  fileName: {
     fontSize: 16,
     color: "#283593",
+    fontWeight: "600",
+  },
+  filePath: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 2,
+  },
+  noMatchContainer: {
+    marginTop: 40,
+    alignItems: "center",
+  },
+  noMatchText: {
+    fontSize: 16,
+    color: "#666",
   },
 });
