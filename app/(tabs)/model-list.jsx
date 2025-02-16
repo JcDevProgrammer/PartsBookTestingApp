@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,26 +6,97 @@ import {
   TouchableOpacity,
   Image,
   FlatList,
+  ActivityIndicator,
+  Linking,
   TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { ref, listAll, getDownloadURL } from "firebase/storage";
+import { storage } from "../../src/screens/config/firebaseConfig";
 
 export default function ModelListScreen() {
   const router = useRouter();
 
-  const [models] = useState([
-    { id: "1", title: "Garment Printer" },
-    { id: "2", title: "Industrial Sewing Machines" },
-    { id: "3", title: "How to use App" },
-    { id: "4", title: "Industrial Printers" },
-  ]);
+  // Store a list of subfolders (prefixes) at the root of the bucket
+  const [folders, setFolders] = useState([]);
+  // Track which folder is currently expanded
+  const [expandedFolder, setExpandedFolder] = useState(null);
+  // For storing each folder's files: { [folderName]: [ { name, url } ] }
+  const [folderFiles, setFolderFiles] = useState({});
+  // Loading states
+  const [loading, setLoading] = useState(true);
+  const [loadingFolder, setLoadingFolder] = useState(null);
 
-  const [expanded, setExpanded] = useState(null);
-
+  // Search bar state
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredModels = models.filter((model) =>
-    model.title.toLowerCase().includes(searchQuery.toLowerCase())
+  useEffect(() => {
+    // On mount, list subfolders in the root of your bucket
+    fetchRoot();
+  }, []);
+
+  // List the root of the bucket
+  const fetchRoot = async () => {
+    try {
+      setLoading(true);
+      const rootRef = ref(storage, ""); // root
+      const result = await listAll(rootRef);
+      // result.prefixes => subfolders
+      // result.items => files at root
+      const folderNames = result.prefixes.map((prefixRef) => prefixRef.name);
+      setFolders(folderNames);
+    } catch (err) {
+      console.error("Error listing root of bucket:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch all files in a specific subfolder
+  const fetchFilesInFolder = async (folderName) => {
+    try {
+      setLoadingFolder(folderName);
+      // e.g., "BROTHER HSM/"
+      const folderRef = ref(storage, folderName + "/");
+      const result = await listAll(folderRef);
+
+      const filePromises = result.items.map(async (itemRef) => {
+        const url = await getDownloadURL(itemRef);
+        return { name: itemRef.name, url };
+      });
+      const files = await Promise.all(filePromises);
+
+      setFolderFiles((prev) => ({ ...prev, [folderName]: files }));
+    } catch (err) {
+      console.error("Error fetching files for folder", folderName, err);
+    } finally {
+      setLoadingFolder(null);
+    }
+  };
+
+  // Toggle expand/collapse for a folder
+  const handleToggleFolder = (folderName) => {
+    if (expandedFolder === folderName) {
+      // Collapse
+      setExpandedFolder(null);
+    } else {
+      // Expand
+      setExpandedFolder(folderName);
+      // If we haven't fetched files for this folder yet, do so
+      if (!folderFiles[folderName]) {
+        fetchFilesInFolder(folderName);
+      }
+    }
+  };
+
+  // Open file URL (PDF, etc.) in default viewer
+  const handleOpenPDF = (url) => {
+    Linking.openURL(url);
+  };
+
+  // Filter the folders by search query
+  const filteredFolders = folders.filter((folderName) =>
+    folderName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -38,9 +109,7 @@ export default function ModelListScreen() {
             style={styles.headerIcon}
           />
         </TouchableOpacity>
-
         <Text style={styles.headerTitle}>Select a model</Text>
-
         <TouchableOpacity onPress={() => console.log("Info pressed")}>
           <Image
             source={require("../../assets/icons/info.png")}
@@ -53,47 +122,69 @@ export default function ModelListScreen() {
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchBar}
-          placeholder="Search models..."
+          placeholder="Search folders..."
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
       </View>
 
-      {}
-      <FlatList
-        data={filteredModels}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => {
-          const isExpanded = expanded === item.id;
-          return (
-            <View style={styles.itemContainer}>
-              {/* Row */}
-              <TouchableOpacity
-                style={styles.itemRow}
-                onPress={() => setExpanded(isExpanded ? null : item.id)}
-              >
-                <Text style={styles.itemText}>{item.title}</Text>
-                <Image
-                  source={require("../../assets/icons/arrow.png")}
-                  style={[
-                    styles.arrowIcon,
-                    isExpanded && { transform: [{ rotate: "180deg" }] },
-                  ]}
-                />
-              </TouchableOpacity>
+      {/* MAIN CONTENT: List of subfolders */}
+      {loading ? (
+        <ActivityIndicator
+          size="large"
+          color="#283593"
+          style={{ marginTop: 20 }}
+        />
+      ) : (
+        <FlatList
+          data={filteredFolders}
+          keyExtractor={(item) => item}
+          renderItem={({ item }) => {
+            const isExpanded = expandedFolder === item;
+            const files = folderFiles[item] || [];
 
-              {/* Expanded Info */}
-              {isExpanded && (
-                <View style={styles.expandedContent}>
-                  <Text style={styles.expandedText}>
-                    Some info about {item.title}.
-                  </Text>
-                </View>
-              )}
-            </View>
-          );
-        }}
-      />
+            return (
+              <View style={styles.itemContainer}>
+                {/* Folder Row */}
+                <TouchableOpacity
+                  style={styles.itemRow}
+                  onPress={() => handleToggleFolder(item)}
+                >
+                  <Text style={styles.itemText}>{item}</Text>
+                  <Image
+                    source={require("../../assets/icons/arrow.png")}
+                    style={[
+                      styles.arrowIcon,
+                      isExpanded && { transform: [{ rotate: "180deg" }] },
+                    ]}
+                  />
+                </TouchableOpacity>
+
+                {/* If expanded, show files */}
+                {isExpanded && (
+                  <View style={styles.expandedContent}>
+                    {loadingFolder === item ? (
+                      <ActivityIndicator size="small" color="#283593" />
+                    ) : files.length > 0 ? (
+                      files.map((file, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.pdfItem}
+                          onPress={() => handleOpenPDF(file.url)}
+                        >
+                          <Text style={styles.pdfText}>{file.name}</Text>
+                        </TouchableOpacity>
+                      ))
+                    ) : (
+                      <Text style={styles.expandedText}>No manuals found.</Text>
+                    )}
+                  </View>
+                )}
+              </View>
+            );
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -160,10 +251,19 @@ const styles = StyleSheet.create({
   expandedContent: {
     backgroundColor: "#f9f9f9",
     paddingHorizontal: 15,
-    paddingBottom: 15,
+    paddingVertical: 10,
   },
   expandedText: {
     fontSize: 14,
     color: "#666",
+  },
+  pdfItem: {
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ccc",
+  },
+  pdfText: {
+    fontSize: 16,
+    color: "#283593",
   },
 });
