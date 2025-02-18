@@ -1,10 +1,11 @@
+// app/(tabs)/home/index.jsx
 import React from "react";
 import { View, StyleSheet, Image, TextInput } from "react-native";
-import { useRouter } from "expo-router"; // For navigation with Expo Router
+import { useRouter } from "expo-router";
 import IconButton from "../../components/ui/IconButton";
 
-const HomeScreen = () => {
-  const router = useRouter(); // Initialize router
+export default function SelectFolderScreen() {
+  const router = useRouter();
 
   return (
     <View style={styles.container}>
@@ -33,16 +34,16 @@ const HomeScreen = () => {
       <IconButton
         icon={require("../../assets/icons/manual.png")}
         label="User's Manual"
-        onPress={() => router.push("/user-manual")} // Navigates to User Manual
+        onPress={() => router.push("/(tabs)/user-manual")}
       />
       <IconButton
         icon={require("../../assets/icons/video.png")}
         label="Video Manual for GT"
-        onPress={() => router.push("/video-manual")} // Navigates to Video Manual
+        onPress={() => router.push("/(tabs)/video-manual")}
       />
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -76,5 +77,3 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
 });
-
-export default HomeScreen;
