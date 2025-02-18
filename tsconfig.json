@@ -23,6 +23,7 @@
     "components/ui/IconSymbol.jsx",
     "components/ui/IconSymbol.jsx",
     "components/ThemedView.jsx",
-    "components/ThemedText.jsx"
+    "components/ThemedText.jsx",
+    "components/ui/IconButton.jsx"
   ]
 }

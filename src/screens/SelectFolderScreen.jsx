@@ -1,11 +1,12 @@
-// app/(tabs)/home/index.jsx
+// src/screens/SelectFolderScreen.jsx
 import React from "react";
 import { View, StyleSheet, Image, TextInput } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import IconButton from "../../components/ui/IconButton";
 
 export default function SelectFolderScreen() {
   const router = useRouter();
+  const { fileUrl } = useLocalSearchParams();
 
   return (
     <View style={styles.container}>
@@ -13,7 +14,7 @@ export default function SelectFolderScreen() {
       <View style={styles.header}>
         <Image
           source={require("../../assets/icons/printer.png")}
-          style={styles.headerIcon}
+          style={styles.headerIcon} // May tintColor na
         />
 
         {/* Search Bar */}
@@ -21,7 +22,7 @@ export default function SelectFolderScreen() {
 
         <Image
           source={require("../../assets/icons/info.png")}
-          style={styles.headerIcon}
+          style={styles.headerIcon} // May tintColor na
         />
       </View>
 
@@ -54,14 +55,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#283593",
-    paddingTop: 40,
+    paddingTop: 20,
     paddingVertical: 12,
     paddingHorizontal: 10,
+    paddingBottom: 20,
     justifyContent: "space-between",
   },
   headerIcon: {
     width: 25,
     height: 25,
+    // Ito ang mahalaga para maging white ang icon
+    tintColor: "#fff",
   },
   searchBar: {
     flex: 1,

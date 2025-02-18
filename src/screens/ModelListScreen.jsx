@@ -7,12 +7,11 @@ import {
   Image,
   FlatList,
   ActivityIndicator,
-  Linking,
   TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
-import { storage } from "../../src/config/firebaseConfig";
+import { storage } from "../config/firebaseConfig"; // Siguraduhing tama ang path
 
 export default function ModelListScreen() {
   const router = useRouter();
@@ -66,11 +65,11 @@ export default function ModelListScreen() {
         subfolderData.push({ folderName: "Root", files: rootFiles });
       }
 
-      // Define the sample manual file
+      // Define the sample manual file (example only)
       const sampleManual = {
         name: "Sample Manual.pdf",
         path: "BROTHER HSM/3034D.PDF",
-        url: "https://firebasestorage.googleapis.com/v0/b/fir-domanapp-719a0.appspot.com/o/BROTHER%20HSM%2F3034D.PDF?alt=media&token=your-sample-token",
+        url: "https://firebasestorage.googleapis.com/v0/b/YOUR-BUCKET-URL/.../3034D.PDF?alt=media",
       };
 
       // Add the sample manual file into the "BROTHER HSM" folder if it exists,
@@ -99,7 +98,7 @@ export default function ModelListScreen() {
     }
   };
 
-  // Filtering logic: if folder name matches, keep all its files; otherwise, keep only files that match.
+  // Filter logic: if folder name matches, keep all its files; otherwise, keep only matching files
   const filteredFolderData = folderData
     .map((folder) => {
       const folderMatch = folder.folderName
@@ -122,8 +121,12 @@ export default function ModelListScreen() {
     setExpandedFolder((prev) => (prev === folderName ? null : folderName));
   };
 
+  // Kapag pinindot ang file, gamitin ang router.push para mag-navigate sa "/select-folder" at ipasa ang fileUrl
   const handleOpenFile = (url) => {
-    Linking.openURL(url);
+    router.push({
+      pathname: "/select-folder",
+      params: { fileUrl: url },
+    });
   };
 
   return (
@@ -189,6 +192,7 @@ export default function ModelListScreen() {
                     ]}
                   />
                 </TouchableOpacity>
+
                 {/* Files List */}
                 {isExpanded && (
                   <View style={styles.fileList}>

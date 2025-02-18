@@ -1,12 +1,10 @@
-// app/(tabs)/video-manual/index.jsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 
 export default function VideoManualScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Video Manual for GT</Text>
-      <Text>Here is the video manual content...</Text>
+      <Text style={styles.text}>Video Manual Screen</Text>
     </View>
   );
 }
@@ -14,14 +12,12 @@ export default function VideoManualScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#EDEDED",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
-    backgroundColor: "#EDEDED",
   },
-  title: {
-    fontSize: 24,
+  text: {
+    fontSize: 18,
     fontWeight: "bold",
-    marginBottom: 10,
   },
 });

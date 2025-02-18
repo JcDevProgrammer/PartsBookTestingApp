@@ -1,2 +1,6 @@
+import React from "react";
 import VideoManualScreen from "../../src/screens/VideoManualScreen";
-export default VideoManualScreen;
+
+export default function VideoManualRoute() {
+  return <VideoManualScreen />;
+}

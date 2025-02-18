@@ -1,4 +1,5 @@
-import React from "react";
+// src/screens/UserManualScreen.jsx
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,8 +8,13 @@ import {
   TouchableOpacity,
   Image,
 } from "react-native";
+import { useRouter } from "expo-router";
+import { ref, listAll, getDownloadURL } from "firebase/storage";
+import { storage } from "../config/firebaseConfig";
 
 export default function UserManualScreen() {
+  const router = useRouter();
+
   const categories = [
     { id: "1", title: "Catalogue" },
     { id: "2", title: "Error code" },
@@ -17,30 +23,85 @@ export default function UserManualScreen() {
     { id: "5", title: "Parts book" },
   ];
 
-  const documents = [
-    { id: "1", category: "Catalogue", name: "[Catalogue] S-7300A" },
-    { id: "2", category: "Error code", name: "S-7300A Error code" },
-    {
-      id: "3",
-      category: "Instruction manual",
-      name: "S-7300A Instruction manual",
-    },
-    { id: "4", category: "Notification", name: "Notification Version 1.2.0" },
-    { id: "5", category: "Parts book", name: "S-7300A Parts book" },
-  ];
+  const [documents, setDocuments] = useState([]);
+
+  useEffect(() => {
+    fetchUserManuals();
+  }, []);
+
+  const fetchUserManuals = async () => {
+    try {
+      // Kunin lahat ng files sa "UserManuals" folder
+      const folderRef = ref(storage, "UserManuals/");
+      const result = await listAll(folderRef);
+
+      const files = await Promise.all(
+        result.items.map(async (itemRef) => {
+          const url = await getDownloadURL(itemRef);
+          const fileName = itemRef.name; // ex. "S-7300A_InstructionManual.pdf"
+
+          // Basic parse para i-determine ang category
+          let category = "Uncategorized";
+          if (fileName.includes("Catalogue")) category = "Catalogue";
+          if (fileName.includes("Error")) category = "Error code";
+          if (fileName.includes("Instruction")) category = "Instruction manual";
+          if (fileName.includes("Notification")) category = "Notification";
+          if (fileName.includes("Parts")) category = "Parts book";
+
+          return {
+            id: itemRef.fullPath, // unique
+            category,
+            name: fileName,
+            url,
+          };
+        })
+      );
+
+      setDocuments(files);
+    } catch (error) {
+      console.error("Error fetching user manuals:", error);
+    }
+  };
+
+  const handleOpenDocument = (pdfUrl) => {
+    router.push({
+      pathname: "/pdf-viewer",
+      params: { url: pdfUrl },
+    });
+  };
+
+  const renderDocumentItem = ({ item }) => {
+    return (
+      <View style={styles.documentItem}>
+        <Text style={styles.categoryTitle}>{item.category}</Text>
+        <TouchableOpacity
+          style={styles.downloadButton}
+          onPress={() => handleOpenDocument(item.url)}
+        >
+          <Image
+            source={require("../../assets/icons/download.png")}
+            style={styles.downloadIcon}
+          />
+          <Text style={styles.documentText}>{item.name}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
+      {/* HEADER */}
       <View style={styles.header}>
         <Text style={styles.headerText}>User's Manual</Text>
       </View>
 
+      {/* CONTENT: sidebar + documents */}
       <View style={styles.content}>
-        {/* Sidebar */}
+        {/* STATIC CATEGORIES (left side) */}
         <View style={styles.sidebar}>
           <FlatList
             data={categories}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(cat) => cat.id}
             renderItem={({ item }) => (
               <TouchableOpacity style={styles.sidebarItem}>
                 <Text style={styles.sidebarText}>{item.title}</Text>
@@ -49,23 +110,12 @@ export default function UserManualScreen() {
           />
         </View>
 
-        {/* Documents */}
+        {/* DOCUMENTS LIST (right side) */}
         <View style={styles.documents}>
           <FlatList
             data={documents}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.documentItem}>
-                <Text style={styles.categoryTitle}>{item.category}</Text>
-                <TouchableOpacity style={styles.downloadButton}>
-                  <Image
-                    source={require("../../assets/icons/download.png")}
-                    style={styles.downloadIcon}
-                  />
-                  <Text style={styles.documentText}>{item.name}</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            keyExtractor={(doc) => doc.id}
+            renderItem={renderDocumentItem}
           />
         </View>
       </View>
@@ -75,11 +125,20 @@ export default function UserManualScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EDEDED" },
-  header: { backgroundColor: "#283593", padding: 15, alignItems: "center" },
+  header: {
+    backgroundColor: "#283593",
+    padding: 15,
+    alignItems: "center",
+  },
   headerText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
 
   content: { flex: 1, flexDirection: "row" },
-  sidebar: { width: "30%", backgroundColor: "#d9d9d9", padding: 10 },
+
+  sidebar: {
+    width: "30%",
+    backgroundColor: "#d9d9d9",
+    padding: 10,
+  },
   sidebarItem: {
     paddingVertical: 15,
     borderBottomWidth: 1,
@@ -87,7 +146,11 @@ const styles = StyleSheet.create({
   },
   sidebarText: { fontSize: 16, fontWeight: "bold", color: "#333" },
 
-  documents: { flex: 1, backgroundColor: "#f5f5f5", padding: 10 },
+  documents: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+    padding: 10,
+  },
   documentItem: { marginBottom: 15 },
   categoryTitle: {
     fontSize: 14,
