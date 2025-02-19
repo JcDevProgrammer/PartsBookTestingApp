@@ -1,23 +1,24 @@
+// app/+not-found.jsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 
-export default function NotFoundRoot() {
+export default function NotFoundScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Root route not found!</Text>
+      <Text style={styles.text}>Route not found!</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#EDEDED",
-    justifyContent: "center",
-    alignItems: "center",
+  container: { 
+    flex: 1, 
+    alignItems: "center", 
+    justifyContent: "center", 
+    backgroundColor: "#EDEDED" 
   },
-  text: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
+  text: { 
+    fontSize: 18, 
+    fontWeight: "bold" 
+  }
 });

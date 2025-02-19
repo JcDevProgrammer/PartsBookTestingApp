@@ -1,32 +1,58 @@
 // src/screens/SelectFolderScreen.jsx
-import React from "react";
-import { View, StyleSheet, Image, TextInput } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useState } from "react";
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Image } from "react-native";
+import { useRouter } from "expo-router";
 import IconButton from "../../components/ui/IconButton";
 
 export default function SelectFolderScreen() {
   const router = useRouter();
-  const { fileUrl } = useLocalSearchParams();
+
+  // Dummy models list
+  const [models] = useState(["GT-100", "GT-200", "GT-300", "ABC-1000", "XYZ-123"]);
+  const [searchText, setSearchText] = useState("");
+  const [selectedModel, setSelectedModel] = useState("");
+
+  const filteredModels = models.filter(model =>
+    model.toLowerCase().includes(searchText.toLowerCase())
+  );
+
+  const handleModelPress = (model) => {
+    setSearchText(model);
+    setSelectedModel(model);
+  };
 
   return (
     <View style={styles.container}>
-      {/* Header Section */}
+      {/* Header with Search Bar */}
       <View style={styles.header}>
-        <Image
-          source={require("../../assets/icons/printer.png")}
-          style={styles.headerIcon} // May tintColor na
+        <Image source={require("../../assets/icons/printer.png")} style={styles.headerIcon} />
+        <TextInput
+          style={styles.searchBar}
+          placeholder="Enter model name..."
+          value={searchText}
+          onChangeText={(text) => {
+            setSearchText(text);
+            setSelectedModel("");
+          }}
         />
-
-        {/* Search Bar */}
-        <TextInput style={styles.searchBar} placeholder="Enter model name..." />
-
-        <Image
-          source={require("../../assets/icons/info.png")}
-          style={styles.headerIcon} // May tintColor na
-        />
+        <Image source={require("../../assets/icons/info.png")} style={styles.headerIcon} />
       </View>
 
-      {/* Menu Items with Navigation */}
+      {/* List of filtered models */}
+      {searchText.length > 0 && !selectedModel && (
+        <FlatList
+          data={filteredModels}
+          keyExtractor={(item) => item}
+          style={styles.list}
+          renderItem={({ item }) => (
+            <TouchableOpacity onPress={() => handleModelPress(item)}>
+              <Text style={styles.listItem}>{item}</Text>
+            </TouchableOpacity>
+          )}
+        />
+      )}
+
+      {/* Navigation Buttons */}
       <IconButton
         icon={require("../../assets/icons/search.png")}
         label="Search Error Code"
@@ -35,38 +61,29 @@ export default function SelectFolderScreen() {
       <IconButton
         icon={require("../../assets/icons/manual.png")}
         label="User's Manual"
-        onPress={() => router.push("/(tabs)/user-manual")}
+        onPress={() => router.push("/user-manual")}
       />
       <IconButton
         icon={require("../../assets/icons/video.png")}
         label="Video Manual for GT"
-        onPress={() => router.push("/(tabs)/video-manual")}
+        onPress={() => router.push("/video-manual")}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#EDEDED",
-  },
+  container: { flex: 1, backgroundColor: "#EDEDED" },
   header: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#283593",
     paddingTop: 20,
-    paddingVertical: 12,
     paddingHorizontal: 10,
     paddingBottom: 20,
-    justifyContent: "space-between",
+    justifyContent: "space-between"
   },
-  headerIcon: {
-    width: 25,
-    height: 25,
-    // Ito ang mahalaga para maging white ang icon
-    tintColor: "#fff",
-  },
+  headerIcon: { width: 25, height: 25, tintColor: "#fff" },
   searchBar: {
     flex: 1,
     backgroundColor: "#fff",
@@ -76,8 +93,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ccc",
     marginHorizontal: 10,
-    fontSize: 14,
-    width: "70%",
-    alignSelf: "center",
+    fontSize: 16
   },
+  list: { marginHorizontal: 10, backgroundColor: "#fff", borderRadius: 8 },
+  listItem: { padding: 10, borderBottomColor: "#ccc", borderBottomWidth: 1 }
 });

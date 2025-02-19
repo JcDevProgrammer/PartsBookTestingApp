@@ -9,11 +9,21 @@ export default function PdfViewerScreen() {
 
   return (
     <View style={styles.container}>
-      <WebView source={{ uri: url }} style={{ flex: 1 }} />
+      {!url ? (
+        <WebView
+          source={{ html: "<h1>No PDF URL provided</h1>" }}
+          style={{ width: "100%", height: "100%" }}
+        />
+      ) : (
+        <WebView source={{ uri: url }} style={{ flex: 1 }} />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
+  container: { 
+    flex: 1, 
+    backgroundColor: "#EDEDED" 
+  }
 });

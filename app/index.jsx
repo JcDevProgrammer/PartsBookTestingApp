@@ -1,6 +1,3 @@
-import React from "react";
+// app/index.jsx
 import SelectModelScreen from "../src/screens/SelectModelScreen";
-
-export default function IndexPage() {
-  return <SelectModelScreen />;
-}
+export default SelectModelScreen;

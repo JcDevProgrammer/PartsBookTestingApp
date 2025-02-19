@@ -1,3 +1,4 @@
+// components/ui/IconButton.jsx
 import React from "react";
 import { TouchableOpacity, Text, Image, StyleSheet } from "react-native";
 
@@ -13,20 +14,12 @@ export default function IconButton({ icon, label, onPress }) {
 const styles = StyleSheet.create({
   button: {
     flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
     backgroundColor: "#fff",
-    marginVertical: 5,
-    marginHorizontal: 20,
+    padding: 12,
+    margin: 8,
     borderRadius: 8,
+    alignItems: "center"
   },
-  icon: {
-    width: 24,
-    height: 24,
-    marginRight: 10,
-  },
-  label: {
-    fontSize: 16,
-    color: "#333",
-  },
+  icon: { width: 24, height: 24, marginRight: 10 },
+  label: { fontSize: 16, color: "#333" }
 });

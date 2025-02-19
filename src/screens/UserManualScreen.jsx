@@ -1,4 +1,4 @@
-// src/screens/UserManualScreen.jsx
+// app/(tabs)/user-manual/index.jsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
-import { storage } from "../config/firebaseConfig";
+import { storage } from "../../src/config/firebaseConfig";
 
 export default function UserManualScreen() {
   const router = useRouter();
@@ -31,16 +31,15 @@ export default function UserManualScreen() {
 
   const fetchUserManuals = async () => {
     try {
-      // Kunin lahat ng files sa "UserManuals" folder
       const folderRef = ref(storage, "UserManuals/");
       const result = await listAll(folderRef);
 
       const files = await Promise.all(
         result.items.map(async (itemRef) => {
           const url = await getDownloadURL(itemRef);
-          const fileName = itemRef.name; // ex. "S-7300A_InstructionManual.pdf"
+          const fileName = itemRef.name; // e.g. "S-7300A_InstructionManual.pdf"
 
-          // Basic parse para i-determine ang category
+          // Basic parse to determine category
           let category = "Uncategorized";
           if (fileName.includes("Catalogue")) category = "Catalogue";
           if (fileName.includes("Error")) category = "Error code";
@@ -64,29 +63,30 @@ export default function UserManualScreen() {
   };
 
   const handleOpenDocument = (pdfUrl) => {
+    // Navigate to the PDF Viewer route with the PDF URL
     router.push({
       pathname: "/pdf-viewer",
       params: { url: pdfUrl },
     });
   };
 
-  const renderDocumentItem = ({ item }) => {
-    return (
-      <View style={styles.documentItem}>
-        <Text style={styles.categoryTitle}>{item.category}</Text>
-        <TouchableOpacity
-          style={styles.downloadButton}
-          onPress={() => handleOpenDocument(item.url)}
-        >
-          <Image
-            source={require("../../assets/icons/download.png")}
-            style={styles.downloadIcon}
-          />
-          <Text style={styles.documentText}>{item.name}</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
+  const renderDocumentItem = ({ item }) => (
+    <View style={styles.documentItem}>
+      <Text style={styles.categoryTitle}>{item.category}</Text>
+      <TouchableOpacity
+        style={styles.downloadButton}
+        onPress={() => handleOpenDocument(item.url)}
+      >
+        <Image
+          source={{
+            uri: "https://img.icons8.com/ios-filled/50/000000/download.png",
+          }}
+          style={styles.downloadIcon}
+        />
+        <Text style={styles.documentText}>{item.name}</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -127,7 +127,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EDEDED" },
   header: {
     backgroundColor: "#283593",
-    padding: 15,
+    paddingTop: 20,
+    paddingHorizontal: 10,
+    paddingBottom: 20,
     alignItems: "center",
   },
   headerText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
