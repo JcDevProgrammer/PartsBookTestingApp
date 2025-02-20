@@ -4,7 +4,7 @@ import { View, StyleSheet } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { WebView } from "react-native-webview";
 
-export default function PdfViewerScreen() {
+export default function PdfViewer() {
   const { url } = useLocalSearchParams();
 
   return (
@@ -22,8 +22,5 @@ export default function PdfViewerScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: "#EDEDED" 
-  }
+  container: { flex: 1, backgroundColor: "#EDEDED" },
 });

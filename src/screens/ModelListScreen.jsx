@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
-import { storage } from "../config/firebaseConfig"; // Siguraduhing tama ang path
+import { storage } from "../config/firebaseConfig"; // Adjust path if needed
 
 export default function ModelListScreen() {
   const router = useRouter();
@@ -65,15 +65,13 @@ export default function ModelListScreen() {
         subfolderData.push({ folderName: "Root", files: rootFiles });
       }
 
-      // Define the sample manual file (example only)
+      // EXAMPLE ONLY: If you want to manually insert a "Sample Manual" into "BROTHER HSM"
+      // (Remove if you don't need this.)
       const sampleManual = {
         name: "Sample Manual.pdf",
         path: "BROTHER HSM/3034D.PDF",
-        url: "https://firebasestorage.googleapis.com/v0/b/YOUR-BUCKET-URL/.../3034D.PDF?alt=media",
+        url: "https://firebasestorage.googleapis.com/v0/b/YOUR-BUCKET/.../3034D.PDF?alt=media",
       };
-
-      // Add the sample manual file into the "BROTHER HSM" folder if it exists,
-      // or create that folder if not present.
       let foundBrotherHSM = false;
       subfolderData.forEach((folder) => {
         if (folder.folderName === "BROTHER HSM") {
@@ -121,7 +119,7 @@ export default function ModelListScreen() {
     setExpandedFolder((prev) => (prev === folderName ? null : folderName));
   };
 
-  // Kapag pinindot ang file, gamitin ang router.push para mag-navigate sa "/select-folder" at ipasa ang fileUrl
+  // Navigate to select-folder screen (passing fileUrl if you want)
   const handleOpenFile = (url) => {
     router.push({
       pathname: "/select-folder",

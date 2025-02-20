@@ -10,7 +10,7 @@ export default function SelectFolderScreen() {
   // Dummy models list
   const [models] = useState(["GT-100", "GT-200", "GT-300", "ABC-1000", "XYZ-123"]);
   const [searchText, setSearchText] = useState("");
-  const [selectedModel, setSelectedModel] = useState("");
+  const [selectedModel, setSelectedModel] = useState(" ");
 
   const filteredModels = models.filter(model =>
     model.toLowerCase().includes(searchText.toLowerCase())
@@ -98,3 +98,5 @@ const styles = StyleSheet.create({
   list: { marginHorizontal: 10, backgroundColor: "#fff", borderRadius: 8 },
   listItem: { padding: 10, borderBottomColor: "#ccc", borderBottomWidth: 1 }
 });
+
+
