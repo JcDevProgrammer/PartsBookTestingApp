@@ -1,18 +1,37 @@
-// src/screens/SelectFolderScreen.jsx
-import React, { useState } from "react";
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Image } from "react-native";
-import { useRouter } from "expo-router";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  ActivityIndicator,
+} from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import IconButton from "../../components/ui/IconButton";
+import { ref, listAll, getDownloadURL } from "firebase/storage";
+import { storage } from "../config/firebaseConfig";
 
 export default function SelectFolderScreen() {
   const router = useRouter();
+  const { fileUrl } = useLocalSearchParams(); // e.g. might not be used
+  // Or if you want to pass 'model' param, you can do so
+  // (You didn't specify exactly, but I'll keep your original layout)
 
-  // Dummy models list
-  const [models] = useState(["GT-100", "GT-200", "GT-300", "ABC-1000", "XYZ-123"]);
+  // Dummy models list (if you had them originally) or you can do BFS approach here.
+  const [models] = useState(["GT-100", "GT-200", "BROTHER HSM", "BROTHER SEM"]);
   const [searchText, setSearchText] = useState("");
   const [selectedModel, setSelectedModel] = useState(" ");
 
-  const filteredModels = models.filter(model =>
+  const [loading, setLoading] = useState(false);
+  const [files, setFiles] = useState([]);
+
+  // If you want BFS approach here, do it in useEffect:
+  // useEffect(() => { ... }, []);
+
+  const filteredModels = models.filter((model) =>
     model.toLowerCase().includes(searchText.toLowerCase())
   );
 
@@ -25,7 +44,10 @@ export default function SelectFolderScreen() {
     <View style={styles.container}>
       {/* Header with Search Bar */}
       <View style={styles.header}>
-        <Image source={require("../../assets/icons/printer.png")} style={styles.headerIcon} />
+        <Image
+          source={require("../../assets/icons/printer.png")}
+          style={styles.headerIcon}
+        />
         <TextInput
           style={styles.searchBar}
           placeholder="Enter model name..."
@@ -35,7 +57,10 @@ export default function SelectFolderScreen() {
             setSelectedModel("");
           }}
         />
-        <Image source={require("../../assets/icons/info.png")} style={styles.headerIcon} />
+        <Image
+          source={require("../../assets/icons/info.png")}
+          style={styles.headerIcon}
+        />
       </View>
 
       {/* List of filtered models */}
@@ -72,6 +97,7 @@ export default function SelectFolderScreen() {
   );
 }
 
+// EXACT layout from your snippet
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EDEDED" },
   header: {
@@ -81,7 +107,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingHorizontal: 10,
     paddingBottom: 20,
-    justifyContent: "space-between"
+    justifyContent: "space-between",
   },
   headerIcon: { width: 25, height: 25, tintColor: "#fff" },
   searchBar: {
@@ -93,10 +119,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ccc",
     marginHorizontal: 10,
-    fontSize: 16
+    fontSize: 16,
   },
   list: { marginHorizontal: 10, backgroundColor: "#fff", borderRadius: 8 },
-  listItem: { padding: 10, borderBottomColor: "#ccc", borderBottomWidth: 1 }
+  listItem: { padding: 10, borderBottomColor: "#ccc", borderBottomWidth: 1 },
 });
-
-

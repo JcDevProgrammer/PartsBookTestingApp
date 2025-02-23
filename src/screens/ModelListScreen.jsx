@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
-import { storage } from "../config/firebaseConfig"; // Adjust path if needed
+import { storage } from "../config/firebaseConfig"; // Adjust if needed
 
 export default function ModelListScreen() {
   const router = useRouter();
@@ -30,73 +30,78 @@ export default function ModelListScreen() {
     fetchAllFilesConcurrently();
   }, []);
 
-  // Recursively fetch all files from every subfolder using BFS
-  const fetchAllFilesConcurrently = async () => {
+  /**
+   * BFS helper (maxDepth=1)
+   * Kukunin lahat ng files (walang filter) mula sa top-level subfolder + 1 level of subfolders
+   */
+  async function bfsListAll(folderRef, maxDepth = 1) {
+    let queue = [{ prefixRef: folderRef, depth: 0 }];
+    let visited = new Set();
+    let allItems = [];
+
+    while (queue.length > 0) {
+      const { prefixRef, depth } = queue.shift();
+      if (visited.has(prefixRef.fullPath)) continue;
+      visited.add(prefixRef.fullPath);
+
+      const result = await listAll(prefixRef);
+
+      // Add all files
+      for (let itemRef of result.items) {
+        const url = await getDownloadURL(itemRef);
+        allItems.push({
+          name: itemRef.name,
+          path: itemRef.fullPath,
+          url,
+        });
+      }
+
+      // If you want to go deeper, push subfolders if depth < maxDepth
+      if (depth < maxDepth) {
+        for (let prefix of result.prefixes) {
+          queue.push({ prefixRef: prefix, depth: depth + 1 });
+        }
+      }
+    }
+
+    return allItems;
+  }
+
+  // Kunin lahat ng top-level folders sa root. For each folder, BFS -> kukunin lahat ng PDF files
+  async function fetchAllFilesConcurrently() {
     try {
       setLoadingRoot(true);
       const rootRef = ref(storage, "");
       const rootResult = await listAll(rootRef);
 
-      // Process root-level files
-      const rootFiles = await Promise.all(
-        rootResult.items.map(async (itemRef) => {
-          const url = await getDownloadURL(itemRef);
-          return { name: itemRef.name, path: itemRef.fullPath, url };
-        })
-      );
-
-      // Process subfolders in parallel
       const folderPromises = rootResult.prefixes.map(async (subfolderRef) => {
         const folderName = subfolderRef.name;
-        const folderRef = ref(storage, folderName + "/");
-        const folderResult = await listAll(folderRef);
-        const files = await Promise.all(
-          folderResult.items.map(async (itemRef) => {
-            const url = await getDownloadURL(itemRef);
-            return { name: itemRef.name, path: itemRef.fullPath, url };
-          })
-        );
-        return { folderName, files };
+
+        // BFS: Kukunin lahat ng files (walang filter)
+        const allFiles = await bfsListAll(subfolderRef, 1);
+
+        // OPTIONAL FILTER: kung gusto mong i-filter base sa folderName, i-uncomment:
+        // const filteredFiles = allFiles.filter(file =>
+        //   file.name.toLowerCase().includes(folderName.toLowerCase())
+        // );
+
+        // For now, WALANG filter para lumabas lahat
+        return {
+          folderName,
+          files: allFiles, // or use filteredFiles kung gusto mong i-filter
+        };
       });
+
       const subfolderData = await Promise.all(folderPromises);
-
-      // If there are files in the root, add them as a "Root" folder
-      if (rootFiles.length > 0) {
-        subfolderData.push({ folderName: "Root", files: rootFiles });
-      }
-
-      // EXAMPLE ONLY: If you want to manually insert a "Sample Manual" into "BROTHER HSM"
-      // (Remove if you don't need this.)
-      const sampleManual = {
-        name: "Sample Manual.pdf",
-        path: "BROTHER HSM/3034D.PDF",
-        url: "https://firebasestorage.googleapis.com/v0/b/YOUR-BUCKET/.../3034D.PDF?alt=media",
-      };
-      let foundBrotherHSM = false;
-      subfolderData.forEach((folder) => {
-        if (folder.folderName === "BROTHER HSM") {
-          if (!folder.files.some((file) => file.name === "Sample Manual.pdf")) {
-            folder.files.push(sampleManual);
-          }
-          foundBrotherHSM = true;
-        }
-      });
-      if (!foundBrotherHSM) {
-        subfolderData.push({
-          folderName: "BROTHER HSM",
-          files: [sampleManual],
-        });
-      }
-
       setFolderData(subfolderData);
     } catch (error) {
       console.error("Error fetching files concurrently:", error);
     } finally {
       setLoadingRoot(false);
     }
-  };
+  }
 
-  // Filter logic: if folder name matches, keep all its files; otherwise, keep only matching files
+  // Filter logic for the search bar
   const filteredFolderData = folderData
     .map((folder) => {
       const folderMatch = folder.folderName
@@ -106,7 +111,7 @@ export default function ModelListScreen() {
         file.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
       if (folderMatch) {
-        return { ...folder };
+        return folder;
       } else if (matchingFiles.length > 0) {
         return { ...folder, files: matchingFiles };
       } else {
@@ -119,7 +124,7 @@ export default function ModelListScreen() {
     setExpandedFolder((prev) => (prev === folderName ? null : folderName));
   };
 
-  // Navigate to select-folder screen (passing fileUrl if you want)
+  // Navigate to select-folder screen (or do something else)
   const handleOpenFile = (url) => {
     router.push({
       pathname: "/select-folder",
@@ -219,6 +224,7 @@ export default function ModelListScreen() {
   );
 }
 
+// EXACT LAYOUT from your snippet
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EDEDED" },
   header: {
