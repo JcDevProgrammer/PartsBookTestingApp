@@ -15,10 +15,11 @@ import { storage } from "../../src/config/firebaseConfig"; // Adjust if needed
 
 export default function UserManualScreen() {
   const router = useRouter();
-
+  // Galing sa ModelListScreen, ipinapasa bilang `model` param
   const { model } = useLocalSearchParams();
   const selectedModel = model ? model : "";
 
+  // Categories para sa sidebar
   const sidebarCategories = [
     { id: "1", title: "Catalogue" },
     { id: "2", title: "Error code" },
@@ -27,7 +28,7 @@ export default function UserManualScreen() {
     { id: "5", title: "Parts book" },
   ];
 
-  // Display order on the right side
+  // Order ng categories sa kanan
   const categoryOrder = [
     "Catalogue",
     "Error code",
@@ -36,7 +37,7 @@ export default function UserManualScreen() {
     "Parts book",
   ];
 
-  // Grouped docs
+  // State para sa grouped documents
   const [groupedDocs, setGroupedDocs] = useState({
     Catalogue: [],
     "Error code": [],
@@ -47,6 +48,7 @@ export default function UserManualScreen() {
   });
   const [loading, setLoading] = useState(false);
 
+  // Kung walang laman ang BFS at model = "BROTHER ISM", gagamitin itong fallback
   const forcedBrotherISM = {
     Catalogue: [
       {
@@ -86,42 +88,57 @@ export default function UserManualScreen() {
     Uncategorized: [],
   };
 
-  // BFS (unlimited subfolders) from model + "/"
-  async function bfsListAllUnlimited(folderRef, modelName) {
+  // --- CONCURRENT BFS (unlimited subfolders) ---
+  // Sa halip na sequential BFS, sabay-sabay natin i-li-listAll ang bawat folder sa bawat "level" ng queue.
+  async function concurrentBFS(folderRef, modelName) {
     let queue = [folderRef];
     let visited = new Set();
     let allItems = [];
 
     while (queue.length > 0) {
-      const currentRef = queue.shift();
-      if (visited.has(currentRef.fullPath)) continue;
-      visited.add(currentRef.fullPath);
+      // Kukunin natin lahat ng nasa queue nang sabay, tapos gagamit tayo ng Promise.all
+      const currentLevel = [...queue];
+      queue = []; // i-empty ang queue, mapupuno ulit ito mamaya
+      // listAll for each folderRef sabay-sabay
+      const levelResults = await Promise.all(
+        currentLevel.map((pRef) => listAll(pRef))
+      );
 
-      const result = await listAll(currentRef);
+      for (let i = 0; i < levelResults.length; i++) {
+        const folderResult = levelResults[i];
+        const prefixRef = currentLevel[i];
 
-      for (let itemRef of result.items) {
-        const fileName = itemRef.name.toLowerCase();
-        // Filter by model name
-        if (modelName && !fileName.includes(modelName.toLowerCase())) {
-          continue;
-        }
-        const url = await getDownloadURL(itemRef);
-        allItems.push({
-          fileName: itemRef.name,
-          url,
-          fullPath: itemRef.fullPath,
+        if (visited.has(prefixRef.fullPath)) continue;
+        visited.add(prefixRef.fullPath);
+
+        // Kunin lahat ng files sabay-sabay
+        const filePromises = folderResult.items.map(async (itemRef) => {
+          const fileName = itemRef.name.toLowerCase();
+          // Filter by model name
+          if (modelName && !fileName.includes(modelName.toLowerCase())) {
+            return null;
+          }
+          const url = await getDownloadURL(itemRef);
+          return {
+            fileName: itemRef.name,
+            url,
+            fullPath: itemRef.fullPath,
+          };
         });
-      }
 
-      // unlimited subfolders
-      for (let prefixRef of result.prefixes) {
-        queue.push(prefixRef);
+        const files = await Promise.all(filePromises);
+        for (let f of files) {
+          if (f) allItems.push(f);
+        }
+
+        // I-push ang subfolders para sa susunod na level
+        queue.push(...folderResult.prefixes);
       }
     }
-
     return allItems;
   }
 
+  // useEffect: tuwing magbabago ang selectedModel, mag–fetch ulit
   useEffect(() => {
     fetchUserManuals(selectedModel);
   }, [selectedModel]);
@@ -129,17 +146,15 @@ export default function UserManualScreen() {
   const fetchUserManuals = async (modelName) => {
     try {
       setLoading(true);
-      // BFS from subfolder "modelName + /"
+      // BFS mula sa subfolder "modelName + /"
       const folderRef = ref(storage, modelName + "/");
-      const allDocs = await bfsListAllUnlimited(folderRef, modelName);
+      const allDocs = await concurrentBFS(folderRef, modelName);
 
-      // If BFS returns 0 items, forcibly add PDF items for BROTHER ISM
-      // or do nothing for other models
+      // Kung walang nakuha na items, fallback
       if (allDocs.length === 0) {
         if (modelName === "BROTHER ISM") {
           setGroupedDocs(forcedBrotherISM);
         } else {
-          // no forced items
           setGroupedDocs({
             Catalogue: [],
             "Error code": [],
@@ -163,7 +178,6 @@ export default function UserManualScreen() {
         Uncategorized: [],
       };
 
-      // Categorize
       allDocs.forEach((doc) => {
         const lower = doc.fileName.toLowerCase();
         let category = "Uncategorized";
@@ -201,15 +215,17 @@ export default function UserManualScreen() {
     }
   };
 
+  // PDF opener (mobile/web)
   const handleOpenDocument = (pdfUrl) => {
     if (Platform.OS === "web") {
       window.open(pdfUrl, "_blank");
     } else {
+      // Kung gusto mong mag-push sa isang PDF viewer screen
       router.push({ pathname: "/pdf-viewer", params: { url: pdfUrl } });
     }
   };
 
-  // Render a single PDF row
+  // Render ng isang PDF row
   const renderDocItem = (doc, index) => (
     <View key={index} style={styles.documentItem}>
       <TouchableOpacity
@@ -225,30 +241,23 @@ export default function UserManualScreen() {
     </View>
   );
 
-  // Right side
+  // Kanang side: i-render categories ayon sa categoryOrder
   const renderRightSide = () => {
     return categoryOrder.map((cat) => {
       const docsForThisCat = groupedDocs[cat] || [];
       return (
         <View key={cat} style={styles.categoryBlock}>
           <Text style={styles.categoryTitle}>{cat}</Text>
-          {/* Wala tayong "Walang laman" text. Kung 0 items, empty lang. */}
           {docsForThisCat.map((doc, idx) => renderDocItem(doc, idx))}
         </View>
       );
     });
   };
 
-  // Left sidebar
+  // Kaliwang sidebar
   const renderSidebar = () => (
     <FlatList
-      data={[
-        { id: "1", title: "Catalogue" },
-        { id: "2", title: "Error code" },
-        { id: "3", title: "Instruction manual" },
-        { id: "4", title: "Notification" },
-        { id: "5", title: "Parts book" },
-      ]}
+      data={sidebarCategories}
       keyExtractor={(item) => item.id}
       renderItem={({ item }) => (
         <View style={styles.sidebarItem}>
@@ -288,13 +297,17 @@ export default function UserManualScreen() {
   return (
     <View style={styles.container}>
       {renderHeader()}
+
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#283593" />
         </View>
       ) : (
         <View style={styles.content}>
+          {/* Kaliwang sidebar */}
           <View style={styles.sidebar}>{renderSidebar()}</View>
+
+          {/* Kanang bahagi - categories at mga doc */}
           <View style={styles.documents}>{renderRightSide()}</View>
         </View>
       )}
@@ -302,7 +315,7 @@ export default function UserManualScreen() {
   );
 }
 
-// EXACT LAYOUT from your snippet
+// STYLES
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EDEDED" },
   header: {

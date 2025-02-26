@@ -2,125 +2,260 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
+  StyleSheet,
   TextInput,
   FlatList,
   TouchableOpacity,
-  StyleSheet,
-  Image,
   ActivityIndicator,
+  Alert,
+  Platform,
 } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import IconButton from "../../components/ui/IconButton";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
-import { storage } from "../config/firebaseConfig";
+import { storage } from "../config/firebaseConfig"; 
+import { WebView } from "react-native-webview";
+import * as Print from "expo-print";
 
-export default function SelectFolderScreen() {
-  const router = useRouter();
-  const { fileUrl } = useLocalSearchParams(); // e.g. might not be used
-  // Or if you want to pass 'model' param, you can do so
-  // (You didn't specify exactly, but I'll keep your original layout)
-
-  // Dummy models list (if you had them originally) or you can do BFS approach here.
-  const [models] = useState(["GT-100", "GT-200", "BROTHER HSM", "BROTHER SEM"]);
-  const [searchText, setSearchText] = useState("");
-  const [selectedModel, setSelectedModel] = useState(" ");
-
+export default function AllPDFScreen() {
+  // Loading indicator while BFS is running
   const [loading, setLoading] = useState(false);
-  const [files, setFiles] = useState([]);
 
-  // If you want BFS approach here, do it in useEffect:
-  // useEffect(() => { ... }, []);
+  // Array of all files discovered from Firebase
+  const [allFiles, setAllFiles] = useState([]);
 
-  const filteredModels = models.filter((model) =>
-    model.toLowerCase().includes(searchText.toLowerCase())
+  // For searching file names
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // The currently selected PDF's URL (if any)
+  const [selectedFileUrl, setSelectedFileUrl] = useState(null);
+
+  // On mount, do BFS to get all files
+  useEffect(() => {
+    fetchAllFiles();
+  }, []);
+
+  async function fetchAllFiles() {
+    try {
+      setLoading(true);
+
+      // Start BFS from the root of your bucket
+      const rootRef = ref(storage, "");
+      let queue = [{ prefixRef: rootRef, depth: 0 }];
+      let visited = new Set();
+      let filesFound = [];
+
+      while (queue.length > 0) {
+        const { prefixRef, depth } = queue.shift();
+        if (visited.has(prefixRef.fullPath)) continue;
+        visited.add(prefixRef.fullPath);
+
+        const result = await listAll(prefixRef);
+
+        // Gather file URLs
+        const filePromises = result.items.map(async (itemRef) => {
+          const url = await getDownloadURL(itemRef);
+          return {
+            name: itemRef.name,
+            path: itemRef.fullPath,
+            url,
+          };
+        });
+        const newFiles = await Promise.all(filePromises);
+        filesFound.push(...newFiles);
+
+        // If you want deeper than 1 level, adjust or remove "depth < 1"
+        if (depth < 1) {
+          for (let prefix of result.prefixes) {
+            queue.push({ prefixRef: prefix, depth: depth + 1 });
+          }
+        }
+      }
+
+      setAllFiles(filesFound);
+    } catch (error) {
+      console.error("Error fetching files via BFS:", error);
+      Alert.alert("Error", "Failed to fetch files from Firebase.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Filter the list by the search query
+  const filteredFiles = allFiles.filter((f) =>
+    f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleModelPress = (model) => {
-    setSearchText(model);
-    setSelectedModel(model);
+  // When user taps on a file, show it immediately in the WebView
+  const handleViewFile = (fileUrl) => {
+    setSelectedFileUrl(fileUrl);
   };
 
+  // Print the currently selected PDF
+  const handlePrint = async () => {
+    if (!selectedFileUrl) return;
+    try {
+      if (Platform.OS === "web") {
+        // On web, open the PDF in a new tab and trigger print
+        const printWindow = window.open(selectedFileUrl, "_blank");
+        printWindow?.print();
+      } else {
+        // On mobile, use expo-print
+        await Print.printAsync({ uri: selectedFileUrl });
+      }
+    } catch (error) {
+      console.error("Print error:", error);
+      Alert.alert("Print Error", "Failed to print the PDF.");
+    }
+  };
+
+  // Placeholder for "Edit PDF" functionality
+  const handleEdit = () => {
+    Alert.alert("Edit PDF", "PDF editing is not implemented yet.");
+  };
+
+  // If a file is selected, show the PDF viewer
+  if (selectedFileUrl) {
+    return (
+      <View style={styles.viewerContainer}>
+        {/* Header for PDF Viewer */}
+        <View style={styles.viewerHeader}>
+          <TouchableOpacity onPress={() => setSelectedFileUrl(null)}>
+            <Text style={styles.headerButton}>Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>PDF Viewer</Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={handlePrint}>
+              <Text style={styles.headerButton}>Print</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleEdit}>
+              <Text style={styles.headerButton}>Edit</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* WebView that displays the PDF */}
+        <WebView
+          source={{ uri: selectedFileUrl }}
+          style={{ flex: 1 }}
+          startInLoadingState
+          renderLoading={() => (
+            <ActivityIndicator size="large" color="#283593" style={{ marginTop: 20 }} />
+          )}
+        />
+      </View>
+    );
+  }
+
+  // Otherwise, show the searchable list of PDFs
   return (
     <View style={styles.container}>
-      {/* Header with Search Bar */}
+      {/* Header */}
       <View style={styles.header}>
-        <Image
-          source={require("../../assets/icons/printer.png")}
-          style={styles.headerIcon}
-        />
+        <Text style={styles.headerTitle}>All PDF Files</Text>
+      </View>
+
+      {/* Search Bar */}
+      <View style={styles.searchBarContainer}>
         <TextInput
           style={styles.searchBar}
-          placeholder="Enter model name..."
-          value={searchText}
-          onChangeText={(text) => {
-            setSearchText(text);
-            setSelectedModel("");
-          }}
-        />
-        <Image
-          source={require("../../assets/icons/info.png")}
-          style={styles.headerIcon}
+          placeholder="Search file name..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
         />
       </View>
 
-      {/* List of filtered models */}
-      {searchText.length > 0 && !selectedModel && (
+      {/* Loading Indicator */}
+      {loading && (
+        <ActivityIndicator size="large" color="#283593" style={{ marginTop: 20 }} />
+      )}
+
+      {/* List of PDFs (filtered by search) */}
+      {!loading && (
         <FlatList
-          data={filteredModels}
-          keyExtractor={(item) => item}
-          style={styles.list}
+          data={filteredFiles}
+          keyExtractor={(item) => item.path}
+          contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => handleModelPress(item)}>
-              <Text style={styles.listItem}>{item}</Text>
+            <TouchableOpacity
+              style={styles.fileItem}
+              onPress={() => handleViewFile(item.url)}
+            >
+              <Text style={styles.fileName}>{item.name}</Text>
             </TouchableOpacity>
           )}
         />
       )}
-
-      {/* Navigation Buttons */}
-      <IconButton
-        icon={require("../../assets/icons/search.png")}
-        label="Search Error Code"
-        onPress={() => console.log("Search Error Code pressed")}
-      />
-      <IconButton
-        icon={require("../../assets/icons/manual.png")}
-        label="User's Manual"
-        onPress={() => router.push("/user-manual")}
-      />
-      <IconButton
-        icon={require("../../assets/icons/video.png")}
-        label="Video Manual for GT"
-        onPress={() => router.push("/video-manual")}
-      />
     </View>
   );
 }
 
-// EXACT layout from your snippet
+/* ---------- STYLES ---------- */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#EDEDED" },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#283593",
-    paddingTop: 20,
-    paddingHorizontal: 10,
-    paddingBottom: 20,
-    justifyContent: "space-between",
-  },
-  headerIcon: { width: 25, height: 25, tintColor: "#fff" },
-  searchBar: {
+  container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#EDEDED",
+  },
+  header: {
+    backgroundColor: "#283593",
+    paddingTop: 40,
+    paddingBottom: 15,
+    alignItems: "center",
+  },
+  headerTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  searchBarContainer: {
+    backgroundColor: "#EDEDED",
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 8,
+  },
+  searchBar: {
+    backgroundColor: "#fff",
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#ccc",
-    marginHorizontal: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     fontSize: 16,
   },
-  list: { marginHorizontal: 10, backgroundColor: "#fff", borderRadius: 8 },
-  listItem: { padding: 10, borderBottomColor: "#ccc", borderBottomWidth: 1 },
+  listContent: {
+    paddingHorizontal: 10,
+    paddingBottom: 20,
+  },
+  fileItem: {
+    backgroundColor: "#fff",
+    marginVertical: 6,
+    borderRadius: 8,
+    padding: 10,
+    justifyContent: "center",
+  },
+  fileName: {
+    fontSize: 16,
+    color: "#333",
+  },
+
+  // PDF Viewer
+  viewerContainer: {
+    flex: 1,
+    backgroundColor: "#EDEDED",
+  },
+  viewerHeader: {
+    flexDirection: "row",
+    backgroundColor: "#283593",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 40,
+    paddingBottom: 15,
+    paddingHorizontal: 10,
+  },
+  headerActions: {
+    flexDirection: "row",
+  },
+  headerButton: {
+    color: "#fff",
+    fontSize: 16,
+    marginHorizontal: 8,
+  },
 });
+
