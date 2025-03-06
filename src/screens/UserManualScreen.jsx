@@ -11,15 +11,15 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
-import { storage } from "../../src/config/firebaseConfig"; // Adjust if needed
+import { storage } from "../../src/config/firebaseConfig"; 
 
 export default function UserManualScreen() {
   const router = useRouter();
-  // Galing sa ModelListScreen, ipinapasa bilang `model` param
+
   const { model } = useLocalSearchParams();
   const selectedModel = model ? model : "";
 
-  // Categories para sa sidebar
+
   const sidebarCategories = [
     { id: "1", title: "Catalogue" },
     { id: "2", title: "Error code" },
@@ -28,7 +28,6 @@ export default function UserManualScreen() {
     { id: "5", title: "Parts book" },
   ];
 
-  // Order ng categories sa kanan
   const categoryOrder = [
     "Catalogue",
     "Error code",

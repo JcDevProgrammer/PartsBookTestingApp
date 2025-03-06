@@ -13,7 +13,7 @@ import {
   Modal,
 } from "react-native";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
-import { storage } from "../config/firebaseConfig";
+import { storage } from "../config/firebaseConfig"; // <-- Adjust mo path
 import { WebView } from "react-native-webview";
 import * as Print from "expo-print";
 import { useRouter } from "expo-router";
@@ -39,6 +39,9 @@ export default function ModelListScreen() {
   // Online/offline
   const [isOnline, setIsOnline] = useState(true);
 
+  // For the "info" dropdown menu
+  const [showInfoMenu, setShowInfoMenu] = useState(false);
+
   useEffect(() => {
     // Makinig sa NetInfo
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -56,7 +59,9 @@ export default function ModelListScreen() {
     };
   }, [isOnline]);
 
-  // Kapag online, mag-fetch sa Firebase
+  // ---------------------
+  // FETCH FOLDERS (BFS)
+  // ---------------------
   async function fetchTopLevelFolders() {
     try {
       setLoadingRoot(true);
@@ -64,8 +69,7 @@ export default function ModelListScreen() {
       const rootResult = await listAll(rootRef);
       const folderNames = rootResult.prefixes.map((folderRef) => folderRef.name);
       setTopFolders(folderNames);
-
-      // I-cache ang folder list
+      // I-cache
       await AsyncStorage.setItem("@cachedFolders", JSON.stringify(folderNames));
     } catch (error) {
       console.error("Error fetching top-level folders:", error);
@@ -74,7 +78,6 @@ export default function ModelListScreen() {
     }
   }
 
-  // Kapag offline, load cached data (kung mayroon)
   async function loadCachedData() {
     try {
       setLoadingRoot(true);
@@ -89,7 +92,6 @@ export default function ModelListScreen() {
     }
   }
 
-  // BFS to list files in a subfolder (with caching)
   async function fetchFolderRecursively(prefixRef, depth = 0, maxDepth = 1) {
     try {
       const result = await listAll(prefixRef);
@@ -118,7 +120,6 @@ export default function ModelListScreen() {
   }
 
   async function fetchSubfolderContents(folderName) {
-    // Kung offline, hindi magfe-fetch
     if (!isOnline) {
       Alert.alert("Offline", "No internet. Can't fetch new data.");
       return;
@@ -138,7 +139,7 @@ export default function ModelListScreen() {
           loaded: true,
         },
       }));
-      // I-cache din ang subfolder data
+      // I-cache
       await AsyncStorage.setItem(
         `@cachedSubfolder_${folderName}`,
         JSON.stringify(files)
@@ -152,7 +153,6 @@ export default function ModelListScreen() {
     }
   }
 
-  // Kapag offline, load cached subfolder data
   async function loadCachedSubfolder(folderName) {
     try {
       const cached = await AsyncStorage.getItem(`@cachedSubfolder_${folderName}`);
@@ -184,16 +184,16 @@ export default function ModelListScreen() {
     const currentData = subfolderData[folderName];
     if (!currentData || !currentData.loaded) {
       if (isOnline) {
-        // If online, fetch fresh data
         fetchSubfolderContents(folderName);
       } else {
-        // If offline, load cached subfolder data
         await loadCachedSubfolder(folderName);
       }
     }
   };
 
-  // Kapag na-tap ang file, ipapakita ang PDF inline
+  // ---------------------
+  //  OPEN PDF
+  // ---------------------
   const handleOpenFile = (url) => {
     if (!isOnline) {
       Alert.alert("Offline", "Cannot view PDF offline (needs internet).");
@@ -202,7 +202,9 @@ export default function ModelListScreen() {
     setSelectedFileUrl(url);
   };
 
-  // Print
+  // ---------------------
+  //  PRINT
+  // ---------------------
   const handlePrint = async () => {
     if (!selectedFileUrl) return;
     try {
@@ -218,7 +220,9 @@ export default function ModelListScreen() {
     }
   };
 
-  // Edit placeholder
+  // ---------------------
+  //  EDIT (Placeholder)
+  // ---------------------
   const handleEdit = () => {
     setEditModalVisible(true);
   };
@@ -231,18 +235,40 @@ export default function ModelListScreen() {
     setEditModalVisible(false);
   };
 
-  // PDF Viewer logic
+  // ---------------
+  //  INFO MENU
+  // ---------------
+  const toggleInfoMenu = () => {
+    setShowInfoMenu(!showInfoMenu);
+  };
+  const goToHome = () => {
+    setShowInfoMenu(false);
+    router.push("/home");
+  };
+  const goToInformation = () => {
+    setShowInfoMenu(false);
+    router.push("/information");
+  };
+  const goToUserSetting = () => {
+    setShowInfoMenu(false);
+    router.push("/user-setting");
+  };
+
+  // ---------------
+  //  PDF Viewer
+  // ---------------
   let viewerUri = selectedFileUrl;
   if (Platform.OS === "android" && selectedFileUrl) {
+    // Kung ayaw mo ng Google Docs fallback, TANGGALIN mo 'to
     viewerUri = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(
       selectedFileUrl
     )}`;
   }
 
-  // If a PDF is selected
   if (selectedFileUrl) {
     return (
       <View style={styles.viewerContainer}>
+        {/* Viewer Header */}
         <View style={styles.viewerHeader}>
           <TouchableOpacity onPress={() => setSelectedFileUrl(null)}>
             <Image
@@ -270,6 +296,7 @@ export default function ModelListScreen() {
         {Platform.OS === "web" ? (
           <View style={{ flex: 1 }}>
             <iframe
+              key={selectedFileUrl}
               src={selectedFileUrl}
               style={{ width: "100%", height: "100%", border: "none" }}
               title="PDF Viewer"
@@ -277,15 +304,12 @@ export default function ModelListScreen() {
           </View>
         ) : (
           <WebView
+            key={selectedFileUrl}
             source={{ uri: viewerUri }}
             style={{ flex: 1 }}
             startInLoadingState
             renderLoading={() => (
-              <ActivityIndicator
-                size="large"
-                color="#283593"
-                style={{ marginTop: 20 }}
-              />
+              <ActivityIndicator size="large" color="#283593" style={{ marginTop: 20 }} />
             )}
             javaScriptEnabled
             scalesPageToFit
@@ -304,10 +328,7 @@ export default function ModelListScreen() {
               <Text style={styles.modalTitle}>Edit PDF</Text>
               <Text style={styles.modalText}>(PDF editing UI goes here)</Text>
               <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.modalButton}
-                  onPress={handleSaveEdit}
-                >
+                <TouchableOpacity style={styles.modalButton} onPress={handleSaveEdit}>
                   <Text style={styles.modalButtonText}>Save</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -324,11 +345,11 @@ export default function ModelListScreen() {
     );
   }
 
-  // Filter for search
+  // ---------------
+  //  MAIN SCREEN
+  // ---------------
   const filteredData = topFolders.reduce((acc, folderName) => {
-    const folderMatch = folderName
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
+    const folderMatch = folderName.toLowerCase().includes(searchQuery.toLowerCase());
     const subData = subfolderData[folderName] || {};
     const filteredFiles =
       subData.files && searchQuery
@@ -353,20 +374,40 @@ export default function ModelListScreen() {
     <View style={styles.container}>
       {/* HEADER */}
       <View style={styles.header}>
+        {/* Left Icon */}
         <TouchableOpacity onPress={() => router.back()}>
           <Image
             source={require("../../assets/icons/back.png")}
             style={styles.headerIcon}
           />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Select a model</Text>
-        <TouchableOpacity onPress={() => console.log("Info pressed")}>
+
+        {/* Title */}
+        <Text style={styles.headerTitle}>Please select a model</Text>
+
+        {/* Info Icon */}
+        <TouchableOpacity onPress={toggleInfoMenu}>
           <Image
             source={require("../../assets/icons/info.png")}
             style={styles.headerIcon}
           />
         </TouchableOpacity>
       </View>
+
+      {/* INFO MENU (dropdown) */}
+      {showInfoMenu && (
+        <View style={styles.infoMenu}>
+          <TouchableOpacity style={styles.infoMenuItem} onPress={goToHome}>
+            <Text style={styles.infoMenuText}>Home Page</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.infoMenuItem} onPress={goToInformation}>
+            <Text style={styles.infoMenuText}>Information</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.infoMenuItem} onPress={goToUserSetting}>
+            <Text style={styles.infoMenuText}>User Setting</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* SEARCH BAR */}
       <View style={styles.searchContainer}>
@@ -383,12 +424,9 @@ export default function ModelListScreen() {
         />
       </View>
 
+      {/* BODY: List of folders/files */}
       {loadingRoot ? (
-        <ActivityIndicator
-          size="large"
-          color="#283593"
-          style={{ marginTop: 20 }}
-        />
+        <ActivityIndicator size="large" color="#283593" style={{ marginTop: 20 }} />
       ) : filteredData.length > 0 ? (
         <FlatList
           data={filteredData}
@@ -411,10 +449,7 @@ export default function ModelListScreen() {
                   </View>
                   <Image
                     source={require("../../assets/icons/arrow.png")}
-                    style={[
-                      styles.arrowIcon,
-                      isExpanded && { transform: [{ rotate: "180deg" }] },
-                    ]}
+                    style={[styles.arrowIcon, isExpanded && { transform: [{ rotate: "180deg" }] }]}
                   />
                 </TouchableOpacity>
 
@@ -445,9 +480,7 @@ export default function ModelListScreen() {
       ) : (
         <View style={styles.noMatchContainer}>
           {isOnline ? (
-            <Text style={styles.noMatchText}>
-              No folders or PDFs match your search.
-            </Text>
+            <Text style={styles.noMatchText}>No folders or PDFs match your search.</Text>
           ) : (
             <Text style={styles.noMatchText}>No offline data available.</Text>
           )}
@@ -457,7 +490,6 @@ export default function ModelListScreen() {
   );
 }
 
-// ------------------ STYLES ------------------
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EDEDED" },
   header: {
@@ -465,12 +497,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#283593",
     paddingTop: 20,
-    paddingHorizontal: 10,
     paddingBottom: 20,
+    paddingHorizontal: 10,
     justifyContent: "space-between",
   },
   headerIcon: { width: 25, height: 25, tintColor: "#fff" },
   headerTitle: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+
+  // Info Menu
+  infoMenu: {
+    position: "absolute",
+    top: 70,
+    right: 10,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    zIndex: 999,
+  },
+  infoMenuItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+  },
+  infoMenuText: {
+    fontSize: 16,
+    color: "#333",
+  },
+
   searchContainer: { padding: 10, backgroundColor: "#EDEDED" },
   searchBar: {
     backgroundColor: "#fff",

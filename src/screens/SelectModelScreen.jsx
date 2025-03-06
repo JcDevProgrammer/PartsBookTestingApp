@@ -32,6 +32,7 @@ export default function SelectModelScreen() {
         </TouchableOpacity>
       </View>
 
+
       {/* BODY */}
       <View style={styles.body}>
         <Text style={styles.bodyText}>
