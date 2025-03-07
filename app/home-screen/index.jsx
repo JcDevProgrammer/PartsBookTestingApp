@@ -1,8 +1,11 @@
 // app/home/index.jsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { useRouter } from "expo-router";
 
 export default function HomeScreen() {
+  const router = useRouter();
+  
   return (
     <View style={styles.container}>
       <Text style={styles.text}>Welcome to the Home Page!</Text>

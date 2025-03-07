@@ -243,7 +243,7 @@ export default function ModelListScreen() {
   };
   const goToHome = () => {
     setShowInfoMenu(false);
-    router.push("/home");
+    router.push("/home-screen");
   };
   const goToInformation = () => {
     setShowInfoMenu(false);
