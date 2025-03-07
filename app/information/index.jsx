@@ -1,6 +1,6 @@
 // app/information/index.jsx
 import React from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from "react-native";
 import { useRouter } from "expo-router";
 
 export default function InformationScreen() {
@@ -18,6 +18,20 @@ export default function InformationScreen() {
 
   return (
     <View style={styles.container}>
+      {/* HEADER */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Image
+            source={require("../../assets/icons/back.png")} // Adjust the path as needed
+            style={styles.headerIcon}
+          />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Information</Text>
+        {/* Right side placeholder for balanced spacing */}
+        <View style={{ width: 25, height: 25 }} />
+      </View>
+
+      {/* CONTENT */}
       <FlatList
         data={infoItems}
         keyExtractor={(item) => item.id}
@@ -32,7 +46,38 @@ export default function InformationScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#EDEDED", padding: 20 },
-  item: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: "#ccc" },
-  itemText: { fontSize: 16, color: "#333" },
+  container: { 
+    flex: 1, 
+    backgroundColor: "#EDEDED" 
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#283593",
+    paddingVertical: 20,
+    paddingHorizontal: 10,
+    justifyContent: "space-between",
+    // No marginBottom so the header is flush with the content below
+  },
+  headerIcon: { 
+    width: 25, 
+    height: 25, 
+    tintColor: "#fff" 
+  },
+  headerTitle: { 
+    color: "#fff", 
+    fontSize: 18, 
+    fontWeight: "bold" 
+  },
+  item: { 
+    paddingVertical: 15, 
+    paddingHorizontal: 10, 
+    borderBottomWidth: 1, 
+    borderBottomColor: "#ccc",
+    backgroundColor: "#EDEDED",
+  },
+  itemText: { 
+    fontSize: 16, 
+    color: "#333" 
+  },
 });
