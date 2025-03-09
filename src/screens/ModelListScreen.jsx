@@ -9,28 +9,32 @@ import {
   ActivityIndicator,
   TextInput,
   Alert,
-  Platform,
   Modal,
+  Platform,
 } from "react-native";
-import { ref, listAll, getDownloadURL } from "firebase/storage";
-import { storage } from "../config/firebaseConfig"; // <-- Adjust mo path
-import { WebView } from "react-native-webview";
-import * as Print from "expo-print";
 import { useRouter } from "expo-router";
 import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Print from "expo-print";
+
+// Firebase
+import { ref, listAll, getDownloadURL } from "firebase/storage";
+import { storage } from "../config/firebaseConfig";
+
+// Parehong mobile & web -> base64 approach + PDF.js w/ outline
+import PdfViewer from "../../components/PdfViewer";
 
 export default function ModelListScreen() {
   const router = useRouter();
 
-  // Folder & file states
   const [topFolders, setTopFolders] = useState([]);
   const [loadingRoot, setLoadingRoot] = useState(true);
   const [subfolderData, setSubfolderData] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedFolder, setExpandedFolder] = useState(null);
 
-  // The currently selected PDF's URL
+  // Base64 PDF data (mobile) or data-URI/URL (web)
+  const [selectedPdfBase64, setSelectedPdfBase64] = useState(null);
   const [selectedFileUrl, setSelectedFileUrl] = useState(null);
 
   // PDF editing modal
@@ -39,16 +43,17 @@ export default function ModelListScreen() {
   // Online/offline
   const [isOnline, setIsOnline] = useState(true);
 
-  // For the "info" dropdown menu
+  // Info dropdown
   const [showInfoMenu, setShowInfoMenu] = useState(false);
 
+  // Download spinner
+  const [isDownloading, setIsDownloading] = useState(false);
+
   useEffect(() => {
-    // Makinig sa NetInfo
     const unsubscribe = NetInfo.addEventListener((state) => {
       const online = state.isConnected && state.isInternetReachable;
       setIsOnline(!!online);
     });
-    // Pag-mount, fetch folders kung online
     if (isOnline) {
       fetchTopLevelFolders();
     } else {
@@ -60,16 +65,18 @@ export default function ModelListScreen() {
   }, [isOnline]);
 
   // ---------------------
-  // FETCH FOLDERS (BFS)
+  // FETCH TOP-LEVEL FOLDERS
   // ---------------------
   async function fetchTopLevelFolders() {
     try {
       setLoadingRoot(true);
       const rootRef = ref(storage, "");
       const rootResult = await listAll(rootRef);
-      const folderNames = rootResult.prefixes.map((folderRef) => folderRef.name);
+
+      const folderNames = rootResult.prefixes.map((f) => f.name);
       setTopFolders(folderNames);
-      // I-cache
+
+      // Cache
       await AsyncStorage.setItem("@cachedFolders", JSON.stringify(folderNames));
     } catch (error) {
       console.error("Error fetching top-level folders:", error);
@@ -86,42 +93,44 @@ export default function ModelListScreen() {
         setTopFolders(JSON.parse(cachedFolders));
       }
     } catch (error) {
-      console.error("Error loading cached folders:", error);
+      console.error("Error loading cached data:", error);
     } finally {
       setLoadingRoot(false);
     }
   }
 
+  // BFS recursion
   async function fetchFolderRecursively(prefixRef, depth = 0, maxDepth = 1) {
     try {
       const result = await listAll(prefixRef);
+      // Get files
       const filePromises = result.items.map(async (itemRef) => {
-        const url = await getDownloadURL(itemRef);
+        const httpsUrl = await getDownloadURL(itemRef);
         return {
           name: itemRef.name,
           path: itemRef.fullPath,
-          url,
+          url: httpsUrl,
         };
       });
       const files = await Promise.all(filePromises);
 
       if (depth < maxDepth) {
-        const subfolderPromises = result.prefixes.map((subRef) =>
+        const subPromises = result.prefixes.map((subRef) =>
           fetchFolderRecursively(subRef, depth + 1, maxDepth)
         );
-        const subfolderFilesArrays = await Promise.all(subfolderPromises);
-        return files.concat(...subfolderFilesArrays);
+        const subFilesArrays = await Promise.all(subPromises);
+        return files.concat(...subFilesArrays);
       }
       return files;
-    } catch (error) {
-      console.error("Error in fetchFolderRecursively:", error);
+    } catch (err) {
+      console.error("Error BFS:", err);
       return [];
     }
   }
 
   async function fetchSubfolderContents(folderName) {
     if (!isOnline) {
-      Alert.alert("Offline", "No internet. Can't fetch new data.");
+      Alert.alert("Offline", "No internet. Can't fetch data.");
       return;
     }
     try {
@@ -139,13 +148,13 @@ export default function ModelListScreen() {
           loaded: true,
         },
       }));
-      // I-cache
+      // Cache
       await AsyncStorage.setItem(
         `@cachedSubfolder_${folderName}`,
         JSON.stringify(files)
       );
     } catch (error) {
-      console.error("Error fetching subfolder contents:", error);
+      console.error("Error fetching subfolder:", error);
       setSubfolderData((prev) => ({
         ...prev,
         [folderName]: { ...prev[folderName], loading: false },
@@ -155,16 +164,14 @@ export default function ModelListScreen() {
 
   async function loadCachedSubfolder(folderName) {
     try {
-      const cached = await AsyncStorage.getItem(`@cachedSubfolder_${folderName}`);
+      const cached = await AsyncStorage.getItem(
+        `@cachedSubfolder_${folderName}`
+      );
       if (cached) {
         const files = JSON.parse(cached);
         setSubfolderData((prev) => ({
           ...prev,
-          [folderName]: {
-            files,
-            loading: false,
-            loaded: true,
-          },
+          [folderName]: { files, loading: false, loaded: true },
         }));
       } else {
         Alert.alert("Offline", "No cached data for this folder.");
@@ -192,42 +199,60 @@ export default function ModelListScreen() {
   };
 
   // ---------------------
-  //  OPEN PDF
+  // OPEN PDF => Download => Base64
   // ---------------------
-  const handleOpenFile = (url) => {
+  async function handleOpenFile(url) {
     if (!isOnline) {
       Alert.alert("Offline", "Cannot view PDF offline (needs internet).");
       return;
     }
-    setSelectedFileUrl(url);
-  };
 
-  // ---------------------
-  //  PRINT
-  // ---------------------
-  const handlePrint = async () => {
-    if (!selectedFileUrl) return;
+    // On web: just store the direct URL
+    if (Platform.OS === "web") {
+      setSelectedFileUrl(url);
+      return;
+    }
+
+    // On mobile: fetch => convert to base64 => store
     try {
-      if (Platform.OS === "web") {
-        const printWindow = window.open(selectedFileUrl, "_blank");
-        printWindow?.print();
-      } else {
-        await Print.printAsync({ uri: selectedFileUrl });
+      setIsDownloading(true);
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch PDF. Status: ${response.status}`);
       }
+      const arrayBuffer = await response.arrayBuffer();
+
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce(
+          (data, byte) => data + String.fromCharCode(byte),
+          ""
+        )
+      );
+      setSelectedPdfBase64(base64);
     } catch (error) {
-      console.error("Print error:", error);
-      Alert.alert("Print Error", "Failed to print the PDF.");
+      Alert.alert("Error", "Failed to download PDF: " + error.message);
+      console.error("Error downloading PDF:", error);
+    } finally {
+      setIsDownloading(false);
+    }
+  }
+
+  // PRINT PDF
+  const handlePrint = async () => {
+    if (Platform.OS === "web") {
+      Alert.alert("Info", "Printing not supported on web in this snippet.");
+    } else {
+      // On mobile, you'd have to convert base64 -> file URI or use Print w/ data URI
+      Alert.alert("Info", "Printing base64 PDF not fully implemented here.");
     }
   };
 
-  // ---------------------
-  //  EDIT (Placeholder)
-  // ---------------------
+  // EDIT PDF (placeholder)
   const handleEdit = () => {
     setEditModalVisible(true);
   };
   const handleSaveEdit = () => {
-    Alert.alert("Success", "PDF edited and saved successfully!");
+    Alert.alert("Success", "PDF edited & saved!");
     setEditModalVisible(false);
   };
   const handleCancelEdit = () => {
@@ -235,9 +260,7 @@ export default function ModelListScreen() {
     setEditModalVisible(false);
   };
 
-  // ---------------
-  //  INFO MENU
-  // ---------------
+  // Info menu
   const toggleInfoMenu = () => {
     setShowInfoMenu(!showInfoMenu);
   };
@@ -254,21 +277,13 @@ export default function ModelListScreen() {
     router.push("/user-setting");
   };
 
-  // ---------------
-  //  PDF Viewer
-  // ---------------
-  let viewerUri = selectedFileUrl;
-  if (Platform.OS === "android" && selectedFileUrl) {
-    // Kung ayaw mo ng Google Docs fallback, TANGGALIN mo 'to
-    viewerUri = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(
-      selectedFileUrl
-    )}`;
-  }
-
-  if (selectedFileUrl) {
+  // ---------------------
+  // PDF VIEWER SCREEN
+  // ---------------------
+  // If we're on web and we have a selectedFileUrl => show the PDF in web
+  if (Platform.OS === "web" && selectedFileUrl) {
     return (
       <View style={styles.viewerContainer}>
-        {/* Viewer Header */}
         <View style={styles.viewerHeader}>
           <TouchableOpacity onPress={() => setSelectedFileUrl(null)}>
             <Image
@@ -293,30 +308,47 @@ export default function ModelListScreen() {
           </View>
         </View>
 
-        {Platform.OS === "web" ? (
-          <View style={{ flex: 1 }}>
-            <iframe
-              key={selectedFileUrl}
-              src={selectedFileUrl}
-              style={{ width: "100%", height: "100%", border: "none" }}
-              title="PDF Viewer"
-            />
-          </View>
-        ) : (
-          <WebView
-            key={selectedFileUrl}
-            source={{ uri: viewerUri }}
-            style={{ flex: 1 }}
-            startInLoadingState
-            renderLoading={() => (
-              <ActivityIndicator size="large" color="#283593" style={{ marginTop: 20 }} />
-            )}
-            javaScriptEnabled
-            scalesPageToFit
-          />
-        )}
+        <View style={{ flex: 1 }}>
+          {/* On web, pass "uri" prop to PdfViewer (no base64Data) */}
+          <PdfViewer uri={selectedFileUrl} />
+        </View>
+      </View>
+    );
+  }
 
-        {/* Edit PDF Modal */}
+  // Otherwise, if we have base64 => show the PDF in mobile
+  if (selectedPdfBase64) {
+    return (
+      <View style={styles.viewerContainer}>
+        <View style={styles.viewerHeader}>
+          <TouchableOpacity onPress={() => setSelectedPdfBase64(null)}>
+            <Image
+              source={require("../../assets/icons/back.png")}
+              style={styles.viewerIcon}
+            />
+          </TouchableOpacity>
+          <Text style={styles.viewerTitle}>PDF Viewer</Text>
+          <View style={styles.viewerActions}>
+            <TouchableOpacity onPress={handlePrint}>
+              <Image
+                source={require("../../assets/icons/printer.png")}
+                style={styles.viewerIcon}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleEdit}>
+              <Image
+                source={require("../../assets/icons/edit.png")}
+                style={styles.viewerIcon}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={{ flex: 1 }}>
+          {/* On mobile, pass "base64Data" to PdfViewer */}
+          <PdfViewer base64Data={selectedPdfBase64} />
+        </View>
+
         <Modal
           transparent={true}
           visible={editModalVisible}
@@ -328,7 +360,10 @@ export default function ModelListScreen() {
               <Text style={styles.modalTitle}>Edit PDF</Text>
               <Text style={styles.modalText}>(PDF editing UI goes here)</Text>
               <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.modalButton} onPress={handleSaveEdit}>
+                <TouchableOpacity
+                  style={styles.modalButton}
+                  onPress={handleSaveEdit}
+                >
                   <Text style={styles.modalButtonText}>Save</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -345,12 +380,14 @@ export default function ModelListScreen() {
     );
   }
 
-  // ---------------
-  //  MAIN SCREEN
-  // ---------------
+  // ---------------------
+  // MAIN SCREEN
+  // ---------------------
   const filteredData = topFolders.reduce((acc, folderName) => {
-    const folderMatch = folderName.toLowerCase().includes(searchQuery.toLowerCase());
     const subData = subfolderData[folderName] || {};
+    const folderMatch = folderName
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
     const filteredFiles =
       subData.files && searchQuery
         ? subData.files.filter(
@@ -372,20 +409,25 @@ export default function ModelListScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Download overlay */}
+      {isDownloading && (
+        <View style={styles.downloadOverlay}>
+          <View style={styles.downloadBox}>
+            <ActivityIndicator size="large" color="#fff" />
+            <Text style={styles.downloadText}>Downloading PDF...</Text>
+          </View>
+        </View>
+      )}
+
       {/* HEADER */}
       <View style={styles.header}>
-        {/* Left Icon */}
         <TouchableOpacity onPress={() => router.back()}>
           <Image
             source={require("../../assets/icons/back.png")}
             style={styles.headerIcon}
           />
         </TouchableOpacity>
-
-        {/* Title */}
         <Text style={styles.headerTitle}>Please select a model</Text>
-
-        {/* Info Icon */}
         <TouchableOpacity onPress={toggleInfoMenu}>
           <Image
             source={require("../../assets/icons/info.png")}
@@ -394,16 +436,22 @@ export default function ModelListScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* INFO MENU (dropdown) */}
+      {/* INFO MENU */}
       {showInfoMenu && (
         <View style={styles.infoMenu}>
           <TouchableOpacity style={styles.infoMenuItem} onPress={goToHome}>
             <Text style={styles.infoMenuText}>Home Page</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.infoMenuItem} onPress={goToInformation}>
+          <TouchableOpacity
+            style={styles.infoMenuItem}
+            onPress={goToInformation}
+          >
             <Text style={styles.infoMenuText}>Information</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.infoMenuItem} onPress={goToUserSetting}>
+          <TouchableOpacity
+            style={styles.infoMenuItem}
+            onPress={goToUserSetting}
+          >
             <Text style={styles.infoMenuText}>User Setting</Text>
           </TouchableOpacity>
         </View>
@@ -424,9 +472,13 @@ export default function ModelListScreen() {
         />
       </View>
 
-      {/* BODY: List of folders/files */}
+      {/* BODY */}
       {loadingRoot ? (
-        <ActivityIndicator size="large" color="#283593" style={{ marginTop: 20 }} />
+        <ActivityIndicator
+          size="large"
+          color="#283593"
+          style={{ marginTop: 20 }}
+        />
       ) : filteredData.length > 0 ? (
         <FlatList
           data={filteredData}
@@ -449,7 +501,10 @@ export default function ModelListScreen() {
                   </View>
                   <Image
                     source={require("../../assets/icons/arrow.png")}
-                    style={[styles.arrowIcon, isExpanded && { transform: [{ rotate: "180deg" }] }]}
+                    style={[
+                      styles.arrowIcon,
+                      isExpanded && { transform: [{ rotate: "180deg" }] },
+                    ]}
                   />
                 </TouchableOpacity>
 
@@ -458,14 +513,14 @@ export default function ModelListScreen() {
                     {item.loading ? (
                       <ActivityIndicator size="small" color="#283593" />
                     ) : item.files && item.files.length > 0 ? (
-                      item.files.map((file, idx) => (
+                      item.files.map((f, idx) => (
                         <TouchableOpacity
                           key={idx}
                           style={styles.fileItem}
-                          onPress={() => handleOpenFile(file.url)}
+                          onPress={() => handleOpenFile(f.url)}
                         >
-                          <Text style={styles.fileName}>{file.name}</Text>
-                          <Text style={styles.filePath}>{file.path}</Text>
+                          <Text style={styles.fileName}>{f.name}</Text>
+                          <Text style={styles.filePath}>{f.path}</Text>
                         </TouchableOpacity>
                       ))
                     ) : (
@@ -480,7 +535,9 @@ export default function ModelListScreen() {
       ) : (
         <View style={styles.noMatchContainer}>
           {isOnline ? (
-            <Text style={styles.noMatchText}>No folders or PDFs match your search.</Text>
+            <Text style={styles.noMatchText}>
+              No folders or PDFs match your search.
+            </Text>
           ) : (
             <Text style={styles.noMatchText}>No offline data available.</Text>
           )}
@@ -490,6 +547,7 @@ export default function ModelListScreen() {
   );
 }
 
+//-------------------- STYLES --------------------
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EDEDED" },
   header: {
@@ -503,8 +561,6 @@ const styles = StyleSheet.create({
   },
   headerIcon: { width: 25, height: 25, tintColor: "#fff" },
   headerTitle: { color: "#fff", fontSize: 18, fontWeight: "bold" },
-
-  // Info Menu
   infoMenu: {
     position: "absolute",
     top: 70,
@@ -515,15 +571,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     zIndex: 999,
   },
-  infoMenuItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-  },
-  infoMenuText: {
-    fontSize: 16,
-    color: "#333",
-  },
-
+  infoMenuItem: { paddingVertical: 10, paddingHorizontal: 15 },
+  infoMenuText: { fontSize: 16, color: "#333" },
   searchContainer: { padding: 10, backgroundColor: "#EDEDED" },
   searchBar: {
     backgroundColor: "#fff",
@@ -567,7 +616,6 @@ const styles = StyleSheet.create({
   noMatchContainer: { marginTop: 40, alignItems: "center" },
   noMatchText: { fontSize: 16, color: "#666" },
 
-  // PDF Viewer
   viewerContainer: { flex: 1, backgroundColor: "#EDEDED" },
   viewerHeader: {
     flexDirection: "row",
@@ -582,7 +630,6 @@ const styles = StyleSheet.create({
   viewerActions: { flexDirection: "row" },
   viewerIcon: { width: 25, height: 25, tintColor: "#fff", marginHorizontal: 8 },
 
-  // PDF Editing Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -611,4 +658,23 @@ const styles = StyleSheet.create({
   },
   modalCancelButton: { backgroundColor: "#666" },
   modalButtonText: { color: "#fff", fontSize: 16 },
+
+  downloadOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    zIndex: 999,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  downloadBox: {
+    backgroundColor: "#333",
+    padding: 20,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  downloadText: { color: "#fff", marginTop: 10, fontSize: 16 },
 });
