@@ -7,15 +7,15 @@ export default function SelectModelScreen() {
 
   return (
     <View style={styles.container}>
-      {/* HEADER */}
+      {}
       <View style={styles.header}>
-        {/* Left Icon */}
+        {}
         <Image
           source={require("../../assets/icons/printer.png")}
           style={styles.headerIcon}
         />
 
-        {/* Button na parang search bar */}
+        {}
         <TouchableOpacity
           onPress={() => router.push("/model-list")}
           style={styles.searchButton}
@@ -23,7 +23,7 @@ export default function SelectModelScreen() {
           <Text style={styles.searchButtonText}>Please Select a Model</Text>
         </TouchableOpacity>
 
-        {/* Right Icon */}
+        {}
         <TouchableOpacity onPress={() => console.log("Info pressed")}>
           <Image
             source={require("../../assets/icons/info.png")}
@@ -32,8 +32,7 @@ export default function SelectModelScreen() {
         </TouchableOpacity>
       </View>
 
-
-      {/* BODY */}
+      {}
       <View style={styles.body}>
         <Text style={styles.bodyText}>
           No device currently selected, please select device.

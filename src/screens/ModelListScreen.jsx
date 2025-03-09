@@ -17,11 +17,9 @@ import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Print from "expo-print";
 
-// Firebase
 import { ref, listAll, getDownloadURL } from "firebase/storage";
 import { storage } from "../config/firebaseConfig";
 
-// Parehong mobile & web -> base64 approach + PDF.js w/ outline
 import PdfViewer from "../../components/PdfViewer";
 
 export default function ModelListScreen() {
@@ -33,20 +31,15 @@ export default function ModelListScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedFolder, setExpandedFolder] = useState(null);
 
-  // Base64 PDF data (mobile) or data-URI/URL (web)
   const [selectedPdfBase64, setSelectedPdfBase64] = useState(null);
   const [selectedFileUrl, setSelectedFileUrl] = useState(null);
 
-  // PDF editing modal
   const [editModalVisible, setEditModalVisible] = useState(false);
 
-  // Online/offline
   const [isOnline, setIsOnline] = useState(true);
 
-  // Info dropdown
   const [showInfoMenu, setShowInfoMenu] = useState(false);
 
-  // Download spinner
   const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
@@ -64,9 +57,6 @@ export default function ModelListScreen() {
     };
   }, [isOnline]);
 
-  // ---------------------
-  // FETCH TOP-LEVEL FOLDERS
-  // ---------------------
   async function fetchTopLevelFolders() {
     try {
       setLoadingRoot(true);
@@ -76,7 +66,6 @@ export default function ModelListScreen() {
       const folderNames = rootResult.prefixes.map((f) => f.name);
       setTopFolders(folderNames);
 
-      // Cache
       await AsyncStorage.setItem("@cachedFolders", JSON.stringify(folderNames));
     } catch (error) {
       console.error("Error fetching top-level folders:", error);
@@ -148,7 +137,7 @@ export default function ModelListScreen() {
           loaded: true,
         },
       }));
-      // Cache
+
       await AsyncStorage.setItem(
         `@cachedSubfolder_${folderName}`,
         JSON.stringify(files)
@@ -198,22 +187,17 @@ export default function ModelListScreen() {
     }
   };
 
-  // ---------------------
-  // OPEN PDF => Download => Base64
-  // ---------------------
   async function handleOpenFile(url) {
     if (!isOnline) {
       Alert.alert("Offline", "Cannot view PDF offline (needs internet).");
       return;
     }
 
-    // On web: just store the direct URL
     if (Platform.OS === "web") {
       setSelectedFileUrl(url);
       return;
     }
 
-    // On mobile: fetch => convert to base64 => store
     try {
       setIsDownloading(true);
       const response = await fetch(url);
@@ -237,17 +221,14 @@ export default function ModelListScreen() {
     }
   }
 
-  // PRINT PDF
   const handlePrint = async () => {
     if (Platform.OS === "web") {
       Alert.alert("Info", "Printing not supported on web in this snippet.");
     } else {
-      // On mobile, you'd have to convert base64 -> file URI or use Print w/ data URI
       Alert.alert("Info", "Printing base64 PDF not fully implemented here.");
     }
   };
 
-  // EDIT PDF (placeholder)
   const handleEdit = () => {
     setEditModalVisible(true);
   };
@@ -277,10 +258,6 @@ export default function ModelListScreen() {
     router.push("/user-setting");
   };
 
-  // ---------------------
-  // PDF VIEWER SCREEN
-  // ---------------------
-  // If we're on web and we have a selectedFileUrl => show the PDF in web
   if (Platform.OS === "web" && selectedFileUrl) {
     return (
       <View style={styles.viewerContainer}>
@@ -309,14 +286,13 @@ export default function ModelListScreen() {
         </View>
 
         <View style={{ flex: 1 }}>
-          {/* On web, pass "uri" prop to PdfViewer (no base64Data) */}
+          {}
           <PdfViewer uri={selectedFileUrl} />
         </View>
       </View>
     );
   }
 
-  // Otherwise, if we have base64 => show the PDF in mobile
   if (selectedPdfBase64) {
     return (
       <View style={styles.viewerContainer}>
@@ -380,9 +356,6 @@ export default function ModelListScreen() {
     );
   }
 
-  // ---------------------
-  // MAIN SCREEN
-  // ---------------------
   const filteredData = topFolders.reduce((acc, folderName) => {
     const subData = subfolderData[folderName] || {};
     const folderMatch = folderName
@@ -419,7 +392,7 @@ export default function ModelListScreen() {
         </View>
       )}
 
-      {/* HEADER */}
+      {}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Image
@@ -436,7 +409,7 @@ export default function ModelListScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* INFO MENU */}
+      {}
       {showInfoMenu && (
         <View style={styles.infoMenu}>
           <TouchableOpacity style={styles.infoMenuItem} onPress={goToHome}>
@@ -457,7 +430,7 @@ export default function ModelListScreen() {
         </View>
       )}
 
-      {/* SEARCH BAR */}
+      {}
       <View style={styles.searchContainer}>
         {!isOnline && (
           <Text style={{ color: "red", marginBottom: 5 }}>
@@ -472,7 +445,7 @@ export default function ModelListScreen() {
         />
       </View>
 
-      {/* BODY */}
+      {}
       {loadingRoot ? (
         <ActivityIndicator
           size="large"
@@ -547,7 +520,6 @@ export default function ModelListScreen() {
   );
 }
 
-//-------------------- STYLES --------------------
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#EDEDED" },
   header: {

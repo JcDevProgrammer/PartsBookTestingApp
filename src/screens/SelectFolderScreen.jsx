@@ -11,24 +11,19 @@ import {
   Platform,
 } from "react-native";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
-import { storage } from "../config/firebaseConfig"; 
+import { storage } from "../config/firebaseConfig";
 import { WebView } from "react-native-webview";
 import * as Print from "expo-print";
 
 export default function AllPDFScreen() {
-  // Loading indicator while BFS is running
   const [loading, setLoading] = useState(false);
 
-  // Array of all files discovered from Firebase
   const [allFiles, setAllFiles] = useState([]);
 
-  // For searching file names
   const [searchQuery, setSearchQuery] = useState("");
 
-  // The currently selected PDF's URL (if any)
   const [selectedFileUrl, setSelectedFileUrl] = useState(null);
 
-  // On mount, do BFS to get all files
   useEffect(() => {
     fetchAllFiles();
   }, []);
@@ -37,7 +32,6 @@ export default function AllPDFScreen() {
     try {
       setLoading(true);
 
-      // Start BFS from the root of your bucket
       const rootRef = ref(storage, "");
       let queue = [{ prefixRef: rootRef, depth: 0 }];
       let visited = new Set();
@@ -50,7 +44,6 @@ export default function AllPDFScreen() {
 
         const result = await listAll(prefixRef);
 
-        // Gather file URLs
         const filePromises = result.items.map(async (itemRef) => {
           const url = await getDownloadURL(itemRef);
           return {
@@ -62,7 +55,6 @@ export default function AllPDFScreen() {
         const newFiles = await Promise.all(filePromises);
         filesFound.push(...newFiles);
 
-        // If you want deeper than 1 level, adjust or remove "depth < 1"
         if (depth < 1) {
           for (let prefix of result.prefixes) {
             queue.push({ prefixRef: prefix, depth: depth + 1 });
@@ -79,12 +71,10 @@ export default function AllPDFScreen() {
     }
   }
 
-  // Filter the list by the search query
   const filteredFiles = allFiles.filter((f) =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // When user taps on a file, show it immediately in the WebView
   const handleViewFile = (fileUrl) => {
     setSelectedFileUrl(fileUrl);
   };
@@ -94,11 +84,9 @@ export default function AllPDFScreen() {
     if (!selectedFileUrl) return;
     try {
       if (Platform.OS === "web") {
-        // On web, open the PDF in a new tab and trigger print
         const printWindow = window.open(selectedFileUrl, "_blank");
         printWindow?.print();
       } else {
-        // On mobile, use expo-print
         await Print.printAsync({ uri: selectedFileUrl });
       }
     } catch (error) {
@@ -107,16 +95,14 @@ export default function AllPDFScreen() {
     }
   };
 
-  // Placeholder for "Edit PDF" functionality
   const handleEdit = () => {
     Alert.alert("Edit PDF", "PDF editing is not implemented yet.");
   };
 
-  // If a file is selected, show the PDF viewer
   if (selectedFileUrl) {
     return (
       <View style={styles.viewerContainer}>
-        {/* Header for PDF Viewer */}
+        {}
         <View style={styles.viewerHeader}>
           <TouchableOpacity onPress={() => setSelectedFileUrl(null)}>
             <Text style={styles.headerButton}>Back</Text>
@@ -132,20 +118,23 @@ export default function AllPDFScreen() {
           </View>
         </View>
 
-        {/* WebView that displays the PDF */}
+        {}
         <WebView
           source={{ uri: selectedFileUrl }}
           style={{ flex: 1 }}
           startInLoadingState
           renderLoading={() => (
-            <ActivityIndicator size="large" color="#283593" style={{ marginTop: 20 }} />
+            <ActivityIndicator
+              size="large"
+              color="#283593"
+              style={{ marginTop: 20 }}
+            />
           )}
         />
       </View>
     );
   }
 
-  // Otherwise, show the searchable list of PDFs
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -153,7 +142,7 @@ export default function AllPDFScreen() {
         <Text style={styles.headerTitle}>All PDF Files</Text>
       </View>
 
-      {/* Search Bar */}
+      {}
       <View style={styles.searchBarContainer}>
         <TextInput
           style={styles.searchBar}
@@ -163,12 +152,16 @@ export default function AllPDFScreen() {
         />
       </View>
 
-      {/* Loading Indicator */}
+      {}
       {loading && (
-        <ActivityIndicator size="large" color="#283593" style={{ marginTop: 20 }} />
+        <ActivityIndicator
+          size="large"
+          color="#283593"
+          style={{ marginTop: 20 }}
+        />
       )}
 
-      {/* List of PDFs (filtered by search) */}
+      {}
       {!loading && (
         <FlatList
           data={filteredFiles}
@@ -188,7 +181,6 @@ export default function AllPDFScreen() {
   );
 }
 
-/* ---------- STYLES ---------- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -235,7 +227,6 @@ const styles = StyleSheet.create({
     color: "#333",
   },
 
-  // PDF Viewer
   viewerContainer: {
     flex: 1,
     backgroundColor: "#EDEDED",
@@ -258,4 +249,3 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
 });
-
