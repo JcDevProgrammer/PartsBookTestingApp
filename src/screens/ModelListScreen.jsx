@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -9,13 +9,13 @@ import {
   ActivityIndicator,
   TextInput,
   Alert,
-  Modal,
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Print from "expo-print";
+import * as FileSystem from "expo-file-system"; // <-- ADDED for printing
 
 import { ref, listAll, getDownloadURL } from "firebase/storage";
 import { storage } from "../config/firebaseConfig";
@@ -34,13 +34,12 @@ export default function ModelListScreen() {
   const [selectedPdfBase64, setSelectedPdfBase64] = useState(null);
   const [selectedFileUrl, setSelectedFileUrl] = useState(null);
 
-  const [editModalVisible, setEditModalVisible] = useState(false);
-
   const [isOnline, setIsOnline] = useState(true);
-
   const [showInfoMenu, setShowInfoMenu] = useState(false);
-
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // Ref for PdfViewer to send messages (for search)
+  const pdfViewerRef = useRef(null);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -92,7 +91,6 @@ export default function ModelListScreen() {
   async function fetchFolderRecursively(prefixRef, depth = 0, maxDepth = 1) {
     try {
       const result = await listAll(prefixRef);
-      // Get files
       const filePromises = result.items.map(async (itemRef) => {
         const httpsUrl = await getDownloadURL(itemRef);
         return {
@@ -221,27 +219,35 @@ export default function ModelListScreen() {
     }
   }
 
+  // <-- UPDATED handlePrint FUNCTION (uses expo-file-system)
   const handlePrint = async () => {
     if (Platform.OS === "web") {
       Alert.alert("Info", "Printing not supported on web in this snippet.");
     } else {
-      Alert.alert("Info", "Printing base64 PDF not fully implemented here.");
+      if (selectedPdfBase64) {
+        try {
+          // Write the PDF (base64) to a temporary file
+          const fileUri = FileSystem.cacheDirectory + "temp.pdf";
+          await FileSystem.writeAsStringAsync(fileUri, selectedPdfBase64, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          await Print.printAsync({ uri: fileUri });
+        } catch (error) {
+          Alert.alert("Error", "Failed to print PDF: " + error.message);
+        }
+      }
     }
   };
 
-  const handleEdit = () => {
-    setEditModalVisible(true);
-  };
-  const handleSaveEdit = () => {
-    Alert.alert("Success", "PDF edited & saved!");
-    setEditModalVisible(false);
-  };
-  const handleCancelEdit = () => {
-    Alert.alert("Cancelled", "PDF editing cancelled.");
-    setEditModalVisible(false);
+  // New handleSearch function for mobile PDF viewer
+  const handleSearch = () => {
+    if (Platform.OS !== "web" && pdfViewerRef.current) {
+      pdfViewerRef.current.postMessage("focusSearch");
+    } else {
+      Alert.alert("Search", "Please use the browser's find (Ctrl+F) feature.");
+    }
   };
 
-  // Info menu
   const toggleInfoMenu = () => {
     setShowInfoMenu(!showInfoMenu);
   };
@@ -257,104 +263,6 @@ export default function ModelListScreen() {
     setShowInfoMenu(false);
     router.push("/user-setting");
   };
-
-  if (Platform.OS === "web" && selectedFileUrl) {
-    return (
-      <View style={styles.viewerContainer}>
-        <View style={styles.viewerHeader}>
-          <TouchableOpacity onPress={() => setSelectedFileUrl(null)}>
-            <Image
-              source={require("../../assets/icons/back.png")}
-              style={styles.viewerIcon}
-            />
-          </TouchableOpacity>
-          <Text style={styles.viewerTitle}>PDF Viewer</Text>
-          <View style={styles.viewerActions}>
-            <TouchableOpacity onPress={handlePrint}>
-              <Image
-                source={require("../../assets/icons/printer.png")}
-                style={styles.viewerIcon}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleEdit}>
-              <Image
-                source={require("../../assets/icons/edit.png")}
-                style={styles.viewerIcon}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={{ flex: 1 }}>
-          {}
-          <PdfViewer uri={selectedFileUrl} />
-        </View>
-      </View>
-    );
-  }
-
-  if (selectedPdfBase64) {
-    return (
-      <View style={styles.viewerContainer}>
-        <View style={styles.viewerHeader}>
-          <TouchableOpacity onPress={() => setSelectedPdfBase64(null)}>
-            <Image
-              source={require("../../assets/icons/back.png")}
-              style={styles.viewerIcon}
-            />
-          </TouchableOpacity>
-          <Text style={styles.viewerTitle}>PDF Viewer</Text>
-          <View style={styles.viewerActions}>
-            <TouchableOpacity onPress={handlePrint}>
-              <Image
-                source={require("../../assets/icons/printer.png")}
-                style={styles.viewerIcon}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleEdit}>
-              <Image
-                source={require("../../assets/icons/edit.png")}
-                style={styles.viewerIcon}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={{ flex: 1 }}>
-          {/* On mobile, pass "base64Data" to PdfViewer */}
-          <PdfViewer base64Data={selectedPdfBase64} />
-        </View>
-
-        <Modal
-          transparent={true}
-          visible={editModalVisible}
-          animationType="slide"
-          onRequestClose={() => setEditModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Edit PDF</Text>
-              <Text style={styles.modalText}>(PDF editing UI goes here)</Text>
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.modalButton}
-                  onPress={handleSaveEdit}
-                >
-                  <Text style={styles.modalButtonText}>Save</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalCancelButton]}
-                  onPress={handleCancelEdit}
-                >
-                  <Text style={styles.modalButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      </View>
-    );
-  }
 
   const filteredData = topFolders.reduce((acc, folderName) => {
     const subData = subfolderData[folderName] || {};
@@ -380,9 +288,83 @@ export default function ModelListScreen() {
     return acc;
   }, []);
 
+  // --- RENDER PDF VIEWER (WEB) ---
+  if (Platform.OS === "web" && selectedFileUrl) {
+    return (
+      <View style={styles.viewerContainer}>
+        <View style={styles.viewerHeader}>
+          <TouchableOpacity onPress={() => setSelectedFileUrl(null)}>
+            <Image
+              source={require("../../assets/icons/back.png")}
+              style={styles.viewerIcon}
+            />
+          </TouchableOpacity>
+          <Text style={styles.viewerTitle}>PDF Viewer</Text>
+          <View style={styles.viewerActions}>
+            <TouchableOpacity onPress={handlePrint}>
+              <Image
+                source={require("../../assets/icons/printer.png")}
+                style={styles.viewerIcon}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() =>
+                Alert.alert(
+                  "Search",
+                  "Please use the browser's find (Ctrl+F) feature for search functionality."
+                )
+              }
+            >
+              <Image
+                source={require("../../assets/icons/search.png")}
+                style={styles.viewerIcon}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View style={{ flex: 1 }}>
+          <PdfViewer uri={selectedFileUrl} />
+        </View>
+      </View>
+    );
+  }
+
+  // --- RENDER PDF VIEWER (MOBILE) ---
+  if (selectedPdfBase64) {
+    return (
+      <View style={styles.viewerContainer}>
+        <View style={styles.viewerHeader}>
+          <TouchableOpacity onPress={() => setSelectedPdfBase64(null)}>
+            <Image
+              source={require("../../assets/icons/back.png")}
+              style={styles.viewerIcon}
+            />
+          </TouchableOpacity>
+          <Text style={styles.viewerTitle}>PDF Viewer</Text>
+          <View style={styles.viewerActions}>
+            <TouchableOpacity onPress={handlePrint}>
+              <Image
+                source={require("../../assets/icons/printer.png")}
+                style={styles.viewerIcon}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleSearch}>
+              <Image
+                source={require("../../assets/icons/search.png")}
+                style={styles.viewerIcon}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View style={{ flex: 1 }}>
+          <PdfViewer ref={pdfViewerRef} base64Data={selectedPdfBase64} />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {/* Download overlay */}
       {isDownloading && (
         <View style={styles.downloadOverlay}>
           <View style={styles.downloadBox}>
@@ -391,8 +373,6 @@ export default function ModelListScreen() {
           </View>
         </View>
       )}
-
-      {}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Image
@@ -408,8 +388,6 @@ export default function ModelListScreen() {
           />
         </TouchableOpacity>
       </View>
-
-      {}
       {showInfoMenu && (
         <View style={styles.infoMenu}>
           <TouchableOpacity style={styles.infoMenuItem} onPress={goToHome}>
@@ -429,8 +407,6 @@ export default function ModelListScreen() {
           </TouchableOpacity>
         </View>
       )}
-
-      {}
       <View style={styles.searchContainer}>
         {!isOnline && (
           <Text style={{ color: "red", marginBottom: 5 }}>
@@ -444,8 +420,6 @@ export default function ModelListScreen() {
           onChangeText={setSearchQuery}
         />
       </View>
-
-      {}
       {loadingRoot ? (
         <ActivityIndicator
           size="large"
@@ -480,7 +454,6 @@ export default function ModelListScreen() {
                     ]}
                   />
                 </TouchableOpacity>
-
                 {isExpanded && (
                   <View style={styles.fileList}>
                     {item.loading ? (
@@ -587,7 +560,6 @@ const styles = StyleSheet.create({
   noFilesText: { fontSize: 14, color: "#666", fontStyle: "italic" },
   noMatchContainer: { marginTop: 40, alignItems: "center" },
   noMatchText: { fontSize: 16, color: "#666" },
-
   viewerContainer: { flex: 1, backgroundColor: "#EDEDED" },
   viewerHeader: {
     flexDirection: "row",
@@ -601,36 +573,6 @@ const styles = StyleSheet.create({
   viewerTitle: { color: "#fff", fontSize: 18, fontWeight: "bold" },
   viewerActions: { flexDirection: "row" },
   viewerIcon: { width: 25, height: 25, tintColor: "#fff", marginHorizontal: 8 },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContent: {
-    width: "80%",
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 20,
-    alignItems: "center",
-  },
-  modalTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 10 },
-  modalText: { fontSize: 16, marginBottom: 20 },
-  modalActions: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-  },
-  modalButton: {
-    backgroundColor: "#283593",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 5,
-  },
-  modalCancelButton: { backgroundColor: "#666" },
-  modalButtonText: { color: "#fff", fontSize: 16 },
-
   downloadOverlay: {
     position: "absolute",
     top: 0,
