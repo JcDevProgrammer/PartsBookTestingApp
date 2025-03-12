@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -15,30 +15,68 @@ import { useRouter } from "expo-router";
 import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Print from "expo-print";
-import * as FileSystem from "expo-file-system"; // <-- ADDED for printing
-
+import * as FileSystem from "expo-file-system";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
 import { storage } from "../config/firebaseConfig";
-
 import PdfViewer from "../../components/PdfViewer";
+
+const FolderItem = React.memo(
+  ({ item, isExpanded, onToggleFolder, onOpenFile }) => (
+    <View style={styles.folderContainer}>
+      <TouchableOpacity
+        style={styles.folderRow}
+        onPress={() => onToggleFolder(item.folderName)}
+      >
+        <View style={styles.folderHeader}>
+          <Text style={styles.folderTitle}>{item.folderName}</Text>
+          {item.files && item.files.length > 0 && (
+            <Text style={styles.folderCount}>({item.files.length} items)</Text>
+          )}
+        </View>
+        <Image
+          source={require("../../assets/icons/arrow.png")}
+          style={[
+            styles.arrowIcon,
+            isExpanded && { transform: [{ rotate: "180deg" }] },
+          ]}
+        />
+      </TouchableOpacity>
+      {isExpanded && (
+        <View style={styles.fileList}>
+          {item.loading ? (
+            <ActivityIndicator size="small" color="#283593" />
+          ) : item.files && item.files.length > 0 ? (
+            item.files.map((f, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={styles.fileItem}
+                onPress={() => onOpenFile(f.url)}
+              >
+                <Text style={styles.fileName}>{f.name}</Text>
+                <Text style={styles.filePath}>{f.path}</Text>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <Text style={styles.noFilesText}>No files found.</Text>
+          )}
+        </View>
+      )}
+    </View>
+  )
+);
 
 export default function ModelListScreen() {
   const router = useRouter();
-
   const [topFolders, setTopFolders] = useState([]);
   const [loadingRoot, setLoadingRoot] = useState(true);
   const [subfolderData, setSubfolderData] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedFolder, setExpandedFolder] = useState(null);
-
   const [selectedPdfBase64, setSelectedPdfBase64] = useState(null);
   const [selectedFileUrl, setSelectedFileUrl] = useState(null);
-
   const [isOnline, setIsOnline] = useState(true);
   const [showInfoMenu, setShowInfoMenu] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-
-  // Ref for PdfViewer to send messages (for search)
   const pdfViewerRef = useRef(null);
 
   useEffect(() => {
@@ -51,29 +89,25 @@ export default function ModelListScreen() {
     } else {
       loadCachedData();
     }
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [isOnline]);
 
-  async function fetchTopLevelFolders() {
+  const fetchTopLevelFolders = async () => {
     try {
       setLoadingRoot(true);
       const rootRef = ref(storage, "");
       const rootResult = await listAll(rootRef);
-
       const folderNames = rootResult.prefixes.map((f) => f.name);
       setTopFolders(folderNames);
-
       await AsyncStorage.setItem("@cachedFolders", JSON.stringify(folderNames));
     } catch (error) {
       console.error("Error fetching top-level folders:", error);
     } finally {
       setLoadingRoot(false);
     }
-  }
+  };
 
-  async function loadCachedData() {
+  const loadCachedData = async () => {
     try {
       setLoadingRoot(true);
       const cachedFolders = await AsyncStorage.getItem("@cachedFolders");
@@ -85,22 +119,16 @@ export default function ModelListScreen() {
     } finally {
       setLoadingRoot(false);
     }
-  }
+  };
 
-  // BFS recursion
   async function fetchFolderRecursively(prefixRef, depth = 0, maxDepth = 1) {
     try {
       const result = await listAll(prefixRef);
       const filePromises = result.items.map(async (itemRef) => {
         const httpsUrl = await getDownloadURL(itemRef);
-        return {
-          name: itemRef.name,
-          path: itemRef.fullPath,
-          url: httpsUrl,
-        };
+        return { name: itemRef.name, path: itemRef.fullPath, url: httpsUrl };
       });
       const files = await Promise.all(filePromises);
-
       if (depth < maxDepth) {
         const subPromises = result.prefixes.map((subRef) =>
           fetchFolderRecursively(subRef, depth + 1, maxDepth)
@@ -115,7 +143,7 @@ export default function ModelListScreen() {
     }
   }
 
-  async function fetchSubfolderContents(folderName) {
+  const fetchSubfolderContents = async (folderName) => {
     if (!isOnline) {
       Alert.alert("Offline", "No internet. Can't fetch data.");
       return;
@@ -129,13 +157,8 @@ export default function ModelListScreen() {
       const files = await fetchFolderRecursively(folderRef);
       setSubfolderData((prev) => ({
         ...prev,
-        [folderName]: {
-          files,
-          loading: false,
-          loaded: true,
-        },
+        [folderName]: { files, loading: false, loaded: true },
       }));
-
       await AsyncStorage.setItem(
         `@cachedSubfolder_${folderName}`,
         JSON.stringify(files)
@@ -147,9 +170,9 @@ export default function ModelListScreen() {
         [folderName]: { ...prev[folderName], loading: false },
       }));
     }
-  }
+  };
 
-  async function loadCachedSubfolder(folderName) {
+  const loadCachedSubfolder = async (folderName) => {
     try {
       const cached = await AsyncStorage.getItem(
         `@cachedSubfolder_${folderName}`
@@ -166,7 +189,7 @@ export default function ModelListScreen() {
     } catch (err) {
       console.error("Error loading cached subfolder:", err);
     }
-  }
+  };
 
   const handleToggleFolder = async (folderName) => {
     if (expandedFolder === folderName) {
@@ -174,7 +197,6 @@ export default function ModelListScreen() {
       return;
     }
     setExpandedFolder(folderName);
-
     const currentData = subfolderData[folderName];
     if (!currentData || !currentData.loaded) {
       if (isOnline) {
@@ -185,25 +207,21 @@ export default function ModelListScreen() {
     }
   };
 
-  async function handleOpenFile(url) {
+  const handleOpenFile = async (url) => {
     if (!isOnline) {
       Alert.alert("Offline", "Cannot view PDF offline (needs internet).");
       return;
     }
-
     if (Platform.OS === "web") {
       setSelectedFileUrl(url);
       return;
     }
-
     try {
       setIsDownloading(true);
       const response = await fetch(url);
-      if (!response.ok) {
+      if (!response.ok)
         throw new Error(`Failed to fetch PDF. Status: ${response.status}`);
-      }
       const arrayBuffer = await response.arrayBuffer();
-
       const base64 = btoa(
         new Uint8Array(arrayBuffer).reduce(
           (data, byte) => data + String.fromCharCode(byte),
@@ -217,29 +235,24 @@ export default function ModelListScreen() {
     } finally {
       setIsDownloading(false);
     }
-  }
+  };
 
-  // <-- UPDATED handlePrint FUNCTION (uses expo-file-system)
   const handlePrint = async () => {
     if (Platform.OS === "web") {
       Alert.alert("Info", "Printing not supported on web in this snippet.");
-    } else {
-      if (selectedPdfBase64) {
-        try {
-          // Write the PDF (base64) to a temporary file
-          const fileUri = FileSystem.cacheDirectory + "temp.pdf";
-          await FileSystem.writeAsStringAsync(fileUri, selectedPdfBase64, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          await Print.printAsync({ uri: fileUri });
-        } catch (error) {
-          Alert.alert("Error", "Failed to print PDF: " + error.message);
-        }
+    } else if (selectedPdfBase64) {
+      try {
+        const fileUri = FileSystem.cacheDirectory + "temp.pdf";
+        await FileSystem.writeAsStringAsync(fileUri, selectedPdfBase64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        await Print.printAsync({ uri: fileUri });
+      } catch (error) {
+        Alert.alert("Error", "Failed to print PDF: " + error.message);
       }
     }
   };
 
-  // New handleSearch function for mobile PDF viewer
   const handleSearch = () => {
     if (Platform.OS !== "web" && pdfViewerRef.current) {
       pdfViewerRef.current.postMessage("focusSearch");
@@ -248,9 +261,7 @@ export default function ModelListScreen() {
     }
   };
 
-  const toggleInfoMenu = () => {
-    setShowInfoMenu(!showInfoMenu);
-  };
+  const toggleInfoMenu = () => setShowInfoMenu((prev) => !prev);
   const goToHome = () => {
     setShowInfoMenu(false);
     router.push("/home-screen");
@@ -264,31 +275,31 @@ export default function ModelListScreen() {
     router.push("/user-setting");
   };
 
-  const filteredData = topFolders.reduce((acc, folderName) => {
-    const subData = subfolderData[folderName] || {};
-    const folderMatch = folderName
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    const filteredFiles =
-      subData.files && searchQuery
-        ? subData.files.filter(
-            (file) =>
-              file.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              file.path.toLowerCase().includes(searchQuery.toLowerCase())
-          )
-        : subData.files || [];
+  const filteredData = useMemo(() => {
+    return topFolders.reduce((acc, folderName) => {
+      const subData = subfolderData[folderName] || {};
+      const folderMatch = folderName
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+      const filteredFiles =
+        subData.files && searchQuery
+          ? subData.files.filter(
+              (file) =>
+                file.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                file.path.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+          : subData.files || [];
+      if (folderMatch || filteredFiles.length > 0 || !searchQuery) {
+        acc.push({
+          folderName,
+          files: filteredFiles,
+          loading: subData.loading,
+        });
+      }
+      return acc;
+    }, []);
+  }, [topFolders, subfolderData, searchQuery]);
 
-    if (folderMatch || filteredFiles.length > 0 || !searchQuery) {
-      acc.push({
-        folderName,
-        files: filteredFiles,
-        loading: subData.loading,
-      });
-    }
-    return acc;
-  }, []);
-
-  // --- RENDER PDF VIEWER (WEB) ---
   if (Platform.OS === "web" && selectedFileUrl) {
     return (
       <View style={styles.viewerContainer}>
@@ -329,7 +340,6 @@ export default function ModelListScreen() {
     );
   }
 
-  // --- RENDER PDF VIEWER (MOBILE) ---
   if (selectedPdfBase64) {
     return (
       <View style={styles.viewerContainer}>
@@ -430,63 +440,23 @@ export default function ModelListScreen() {
         <FlatList
           data={filteredData}
           keyExtractor={(item) => item.folderName}
-          renderItem={({ item }) => {
-            const isExpanded = expandedFolder === item.folderName;
-            return (
-              <View style={styles.folderContainer}>
-                <TouchableOpacity
-                  style={styles.folderRow}
-                  onPress={() => handleToggleFolder(item.folderName)}
-                >
-                  <View style={styles.folderHeader}>
-                    <Text style={styles.folderTitle}>{item.folderName}</Text>
-                    {item.files && item.files.length > 0 && (
-                      <Text style={styles.folderCount}>
-                        ({item.files.length} items)
-                      </Text>
-                    )}
-                  </View>
-                  <Image
-                    source={require("../../assets/icons/arrow.png")}
-                    style={[
-                      styles.arrowIcon,
-                      isExpanded && { transform: [{ rotate: "180deg" }] },
-                    ]}
-                  />
-                </TouchableOpacity>
-                {isExpanded && (
-                  <View style={styles.fileList}>
-                    {item.loading ? (
-                      <ActivityIndicator size="small" color="#283593" />
-                    ) : item.files && item.files.length > 0 ? (
-                      item.files.map((f, idx) => (
-                        <TouchableOpacity
-                          key={idx}
-                          style={styles.fileItem}
-                          onPress={() => handleOpenFile(f.url)}
-                        >
-                          <Text style={styles.fileName}>{f.name}</Text>
-                          <Text style={styles.filePath}>{f.path}</Text>
-                        </TouchableOpacity>
-                      ))
-                    ) : (
-                      <Text style={styles.noFilesText}>No files found.</Text>
-                    )}
-                  </View>
-                )}
-              </View>
-            );
-          }}
+          initialNumToRender={5}
+          renderItem={({ item }) => (
+            <FolderItem
+              item={item}
+              isExpanded={expandedFolder === item.folderName}
+              onToggleFolder={handleToggleFolder}
+              onOpenFile={handleOpenFile}
+            />
+          )}
         />
       ) : (
         <View style={styles.noMatchContainer}>
-          {isOnline ? (
-            <Text style={styles.noMatchText}>
-              No folders or PDFs match your search.
-            </Text>
-          ) : (
-            <Text style={styles.noMatchText}>No offline data available.</Text>
-          )}
+          <Text style={styles.noMatchText}>
+            {isOnline
+              ? "No folders or PDFs match your search."
+              : "No offline data available."}
+          </Text>
         </View>
       )}
     </View>

@@ -17,11 +17,10 @@ const PdfViewer = forwardRef(({ base64Data, uri }, ref) => {
   const [html, setHtml] = useState(null);
 
   useEffect(() => {
-    // Kung web platform, gumamit lang ng <iframe>
+    // On mobile, if base64Data is available, build the custom HTML
     if (Platform.OS === "web") {
       return;
     }
-
     if (base64Data) {
       const customHtml = createPdfHtml(base64Data);
       setHtml(customHtml);
@@ -37,7 +36,7 @@ const PdfViewer = forwardRef(({ base64Data, uri }, ref) => {
     },
   }));
 
-  // WEB PLATFORM
+  // Web platform: use iframe
   if (Platform.OS === "web") {
     if (base64Data) {
       return (
@@ -60,7 +59,7 @@ const PdfViewer = forwardRef(({ base64Data, uri }, ref) => {
     }
   }
 
-  // MOBILE: Kung wala pang base64Data
+  // Mobile: show loader until HTML is ready
   if (!base64Data) {
     return (
       <View style={styles.center}>
@@ -68,8 +67,6 @@ const PdfViewer = forwardRef(({ base64Data, uri }, ref) => {
       </View>
     );
   }
-
-  // MOBILE: Kung wala pang nabubuong HTML
   if (!html) {
     return (
       <View style={styles.center}>
@@ -78,7 +75,7 @@ const PdfViewer = forwardRef(({ base64Data, uri }, ref) => {
     );
   }
 
-  // MOBILE: I-render ang custom HTML sa WebView
+  // Render the WebView with our custom HTML
   return (
     <WebView
       ref={webviewRef}
@@ -90,7 +87,7 @@ const PdfViewer = forwardRef(({ base64Data, uri }, ref) => {
   );
 });
 
-// CREATE PDF HTML
+// This function creates a custom HTML page that uses pdf.js with lazy loading
 function createPdfHtml(base64) {
   const htmlLines = [
     "<!DOCTYPE html>",
@@ -104,11 +101,10 @@ function createPdfHtml(base64) {
     "      background: #ccc;",
     "      font-family: sans-serif;",
     "    }",
-    "    /* HEADER (fixed, same height as search bar) */",
     "    #header {",
     "      display: flex;",
     "      align-items: center;",
-    "      height: 60px;", // <-- Ginawa nating fixed height
+    "      height: 60px;",
     "      background: #283593;",
     "      color: #fff;",
     "      position: fixed;",
@@ -121,13 +117,12 @@ function createPdfHtml(base64) {
     "      flex: 1;",
     "      display: flex;",
     "      align-items: center;",
-    "      height: 100%;", // <-- Upang kasing-taas ng #header
+    "      height: 100%;",
     "      padding: 0 10px;",
     "    }",
-    // Pinalaki ang search bar at button
     "    #searchInput {",
     "      flex: 1;",
-    "      height: 40px;", // <-- Kasing-lapit sa header height
+    "      height: 40px;",
     "      font-size: 16px;",
     "      border: none;",
     "      border-radius: 4px;",
@@ -136,7 +131,7 @@ function createPdfHtml(base64) {
     "    }",
     "    #searchButton {",
     "      margin-left: 10px;",
-    "      height: 40px;", // <-- Kapareho ng #searchInput
+    "      height: 40px;",
     "      padding: 0 16px;",
     "      background: #fff;",
     "      color: #283593;",
@@ -156,11 +151,9 @@ function createPdfHtml(base64) {
     "      height: 20px;",
     "      margin-right: 5px;",
     "    }",
-    "",
-    "    /* OUTLINE panel (fixed) sa kaliwa, 200px */",
     "    #outlinePanel {",
     "      position: fixed;",
-    "      top: 60px;", // offset ng header
+    "      top: 60px;",
     "      left: 0;",
     "      width: 200px;",
     "      height: calc(100% - 60px);",
@@ -182,8 +175,6 @@ function createPdfHtml(base64) {
     "    .outlineItem:hover {",
     "      background: #eee;",
     "    }",
-    "",
-    "    /* PDF VIEWER => margin-left: 200px, margin-top: 60px, para di matakpan */",
     "    #viewerContainer {",
     "      margin-left: 200px;",
     "      margin-top: 60px;",
@@ -195,12 +186,11 @@ function createPdfHtml(base64) {
     "      position: relative;",
     "      margin: 10px auto;",
     "      background: #fff;",
+    "      min-height: 400px;", // placeholder height
     "    }",
     "    .pageCanvas {",
     "      display: block;",
     "    }",
-    "",
-    "    /* text layer => invisible text + highlight */",
     "    .textLayer {",
     "      position: absolute;",
     "      top: 0;",
@@ -226,97 +216,97 @@ function createPdfHtml(base64) {
     '  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js"></script>',
     "</head>",
     "<body>",
-    // HEADER
     '  <div id="header">',
     '    <div id="searchContainer">',
     '      <input type="text" id="searchInput" placeholder="Search in PDF..." />',
     '      <button id="searchButton">',
     '        <img id="searchIcon" src="https://cdn-icons-png.flaticon.com/512/54/54481.png" alt="Search Icon" />',
-    "        <span>Search</span>", // optional text
+    "        <span>Search</span>",
     "      </button>",
     "    </div>",
     "  </div>",
-    "",
-    // Outline
     '  <div id="outlinePanel">',
     "    <h3>Document Outline</h3>",
     '    <div id="outlineItems"></div>',
     "  </div>",
-    "",
-    // PDF Container
     '  <div id="viewerContainer"></div>',
-    "",
     "  <script>",
     '    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";',
-    "",
     "    var pdfDoc = null;",
     "    var pageCount = 0;",
     "    var pageTextDivs = {};",
-    "",
-    // HD approach
     "    var devicePixelRatio = window.devicePixelRatio || 1;",
-    "",
     "    function escapeRegExp(str) {",
     "      var pattern = /[.*+?^${}()|[\\]\\\\]/g;",
     '      return str.replace(pattern, "\\\\$&");',
     "    }",
-    "",
     "    function renderPage(pageNum) {",
     "      pdfDoc.getPage(pageNum).then(function(page) {",
-    "        var scale = 1.0;", // same sukat
+    "        var scale = 1.0;",
     "        var viewport = page.getViewport({ scale: scale });",
-    '        var pageContainer = document.createElement("div");',
-    '        pageContainer.className = "pageContainer";',
-    '        pageContainer.id = "pageContainer-" + pageNum;',
-    '        pageContainer.style.width = viewport.width + "px";',
-    '        pageContainer.style.height = viewport.height + "px";',
+    '        var container = document.getElementById("pageContainer-" + pageNum);',
+    "        container.style.width = viewport.width + 'px';",
+    "        container.style.height = viewport.height + 'px';",
     '        var canvas = document.createElement("canvas");',
     '        canvas.className = "pageCanvas";',
-    // HD => bigger actual canvas
-    "        canvas.style.width = viewport.width + 'px';",
-    "        canvas.style.height = viewport.height + 'px';",
     "        canvas.width = viewport.width * devicePixelRatio;",
     "        canvas.height = viewport.height * devicePixelRatio;",
-    '        canvas.id = "pageCanvas-" + pageNum;',
-    "        pageContainer.appendChild(canvas);",
-    '        document.getElementById("viewerContainer").appendChild(pageContainer);',
-    '        var ctx = canvas.getContext("2d");',
+    "        canvas.style.width = viewport.width + 'px';",
+    "        canvas.style.height = viewport.height + 'px';",
+    "        container.appendChild(canvas);",
+    "        var ctx = canvas.getContext('2d');",
     "        ctx.scale(devicePixelRatio, devicePixelRatio);",
-    "        page.render({ canvasContext: ctx, viewport: viewport }).promise",
-    "          .then(function() {",
-    "            return page.getTextContent();",
-    "          })",
-    "          .then(function(textContent) {",
-    '            var textLayerDiv = document.createElement("div");',
-    '            textLayerDiv.className = "textLayer";',
-    '            textLayerDiv.style.width = viewport.width + "px";',
-    '            textLayerDiv.style.height = viewport.height + "px";',
-    '            textLayerDiv.id = "textLayer-" + pageNum;',
-    "            pageContainer.appendChild(textLayerDiv);",
-    "            pdfjsLib.renderTextLayer({",
-    "              textContent: textContent,",
-    "              container: textLayerDiv,",
-    "              viewport: viewport,",
-    "              textDivs: []",
-    "            }).promise.then(function() {",
-    '              pageTextDivs[pageNum] = textLayerDiv.querySelectorAll("span");',
-    "            });",
+    "        page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function() {",
+    "          return page.getTextContent();",
+    "        }).then(function(textContent) {",
+    '          var textLayerDiv = document.createElement("div");',
+    '          textLayerDiv.className = "textLayer";',
+    "          textLayerDiv.style.width = viewport.width + 'px';",
+    "          textLayerDiv.style.height = viewport.height + 'px';",
+    "          container.appendChild(textLayerDiv);",
+    "          pdfjsLib.renderTextLayer({",
+    "            textContent: textContent,",
+    "            container: textLayerDiv,",
+    "            viewport: viewport,",
+    "            textDivs: []",
+    "          }).promise.then(function() {",
+    "            pageTextDivs[pageNum] = textLayerDiv.querySelectorAll('span');",
     "          });",
+    "        });",
     "      });",
     "    }",
-    "",
-    // Load PDF
     "    pdfjsLib.getDocument({",
-    "      data: Uint8Array.from(atob('" + base64 + "'), function(c) {",
-    "        return c.charCodeAt(0);",
-    "      })",
+    '      data: Uint8Array.from(atob("' +
+      base64 +
+      '"), function(c) { return c.charCodeAt(0); })',
     "    }).promise.then(function(pdf) {",
     "      pdfDoc = pdf;",
     "      pageCount = pdf.numPages;",
+    "      var viewerContainer = document.getElementById('viewerContainer');",
     "      for (var i = 1; i <= pageCount; i++) {",
-    "        renderPage(i);",
+    '        var pageContainer = document.createElement("div");',
+    '        pageContainer.className = "pageContainer";',
+    '        pageContainer.id = "pageContainer-" + i;',
+    "        viewerContainer.appendChild(pageContainer);",
     "      }",
-    "      pdf.getOutline().then(function(outline) {",
+    "      var observer = new IntersectionObserver(function(entries, observer) {",
+    "        entries.forEach(function(entry) {",
+    "          if (entry.isIntersecting) {",
+    "            var id = entry.target.id;",
+    "            var pageNum = parseInt(id.split('-')[1]);",
+    "            if (!entry.target.getAttribute('data-rendered')) {",
+    "              renderPage(pageNum);",
+    "              entry.target.setAttribute('data-rendered', 'true');",
+    "              observer.unobserve(entry.target);",
+    "            }",
+    "          }",
+    "        });",
+    "      }, { root: viewerContainer, threshold: 0.1 });",
+    "      for (var i = 1; i <= pageCount; i++) {",
+    '        var container = document.getElementById("pageContainer-" + i);',
+    "        observer.observe(container);",
+    "      }",
+    "      pdfDoc.getOutline().then(function(outline) {",
     "        if (!outline || !outline.length) {",
     '          document.getElementById("outlineItems").innerHTML = "<p>No Outline found.</p>";',
     "          return;",
@@ -329,7 +319,10 @@ function createPdfHtml(base64) {
     "          div.onclick = function() {",
     "            if (item.dest) {",
     "              pdfDoc.getPageIndex(item.dest[0]).then(function(pageIndex) {",
-    "                scrollToPage(pageIndex + 1);",
+    "                var target = document.getElementById('pageContainer-' + (pageIndex + 1));",
+    "                if (target) {",
+    "                  target.scrollIntoView({ behavior: 'smooth' });",
+    "                }",
     "              });",
     "            }",
     "          };",
@@ -337,15 +330,6 @@ function createPdfHtml(base64) {
     "        });",
     "      });",
     "    });",
-    "",
-    "    function scrollToPage(pageNum) {",
-    '      var target = document.getElementById("pageContainer-" + pageNum);',
-    "      if (target) {",
-    '        target.scrollIntoView({ behavior: "smooth" });',
-    "      }",
-    "    }",
-    "",
-    // Search function
     "    function searchInPDF() {",
     '      var term = document.getElementById("searchInput").value;',
     "      if (!term) {",
@@ -372,10 +356,7 @@ function createPdfHtml(base64) {
     '            span.setAttribute("data-original", originalText);',
     "          }",
     "          if (originalText.toLowerCase().includes(lowerTerm)) {",
-    "            var highlighted = originalText.replace(",
-    "              regex,",
-    "              '<span class=\"highlight\">$1</span>'",
-    "            );",
+    "            var highlighted = originalText.replace(regex, '<span class=\"highlight\">$1</span>');",
     "            span.innerHTML = highlighted;",
     "            pageMatched = true;",
     "          } else {",
@@ -384,20 +365,17 @@ function createPdfHtml(base64) {
     "        });",
     "        if (pageMatched && !firstMatch) {",
     "          firstMatch = p2;",
-    '          var container = document.getElementById("pageContainer-" + p2);',
+    "          var container = document.getElementById('pageContainer-' + p2);",
     "          if (container) {",
-    '            container.scrollIntoView({ behavior: "smooth" });',
+    "            container.scrollIntoView({ behavior: 'smooth' });",
     "          }",
     "        }",
     "      }",
     "    }",
-    // Button click => searchInPDF
     '    document.getElementById("searchButton").addEventListener("click", function(){',
     "      searchInPDF();",
     "    });",
-    // Auto-search on input
     '    document.getElementById("searchInput").addEventListener("input", searchInPDF);',
-    // For React Native
     '    document.addEventListener("message", function(e) {',
     '      if (e.data === "focusSearch") {',
     '        document.getElementById("searchInput").focus();',
@@ -407,7 +385,6 @@ function createPdfHtml(base64) {
     "</body>",
     "</html>",
   ];
-
   return htmlLines.join("\n");
 }
 
