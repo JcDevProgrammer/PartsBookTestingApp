@@ -1,6 +1,12 @@
-// app/language-setting/index.jsx
 import React from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Image,
+} from "react-native";
 import { useRouter } from "expo-router";
 
 export default function LanguageSettingScreen() {
@@ -24,17 +30,17 @@ export default function LanguageSettingScreen() {
         {/* Back Button */}
         <TouchableOpacity onPress={() => router.back()}>
           <Image
-            source={require("../../assets/icons/back.png")} // Adjust path if needed
+            source={require("../../assets/icons/back.png")}
             style={styles.headerIcon}
           />
         </TouchableOpacity>
-        {/* Header Title */}
+        {}
         <Text style={styles.headerTitle}>Language Setting</Text>
-        {/* Right side placeholder */}
+        {}
         <View style={{ width: 25, height: 25 }} />
       </View>
 
-      {/* LANGUAGE LIST */}
+      {}
       <FlatList
         data={languages}
         keyExtractor={(item) => item}
@@ -49,9 +55,9 @@ export default function LanguageSettingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: "#EDEDED" 
+  container: {
+    flex: 1,
+    backgroundColor: "#EDEDED",
   },
   header: {
     flexDirection: "row",
@@ -61,23 +67,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     justifyContent: "space-between",
   },
-  headerIcon: { 
-    width: 25, 
-    height: 25, 
-    tintColor: "#fff" 
+  headerIcon: {
+    width: 25,
+    height: 25,
+    tintColor: "#fff",
   },
-  headerTitle: { 
-    color: "#fff", 
-    fontSize: 18, 
-    fontWeight: "bold" 
+  headerTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
   },
-  langItem: { 
-    padding: 15, 
-    borderBottomWidth: 1, 
-    borderBottomColor: "#ccc" 
+  langItem: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ccc",
   },
-  langText: { 
-    fontSize: 16, 
-    color: "#333" 
+  langText: {
+    fontSize: 16,
+    color: "#333",
   },
 });

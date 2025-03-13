@@ -10,6 +10,7 @@ import {
   TextInput,
   Alert,
   Platform,
+  Modal,
 } from "react-native";
 import { useRouter } from "expo-router";
 import NetInfo from "@react-native-community/netinfo";
@@ -77,6 +78,7 @@ export default function ModelListScreen() {
   const [isOnline, setIsOnline] = useState(true);
   const [showInfoMenu, setShowInfoMenu] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [showQRCode, setShowQRCode] = useState(false);
   const pdfViewerRef = useRef(null);
 
   useEffect(() => {
@@ -266,14 +268,6 @@ export default function ModelListScreen() {
     setShowInfoMenu(false);
     router.push("/home-screen");
   };
-  const goToInformation = () => {
-    setShowInfoMenu(false);
-    router.push("/information");
-  };
-  const goToUserSetting = () => {
-    setShowInfoMenu(false);
-    router.push("/user-setting");
-  };
 
   const filteredData = useMemo(() => {
     return topFolders.reduce((acc, folderName) => {
@@ -400,20 +394,23 @@ export default function ModelListScreen() {
       </View>
       {showInfoMenu && (
         <View style={styles.infoMenu}>
-          <TouchableOpacity style={styles.infoMenuItem} onPress={goToHome}>
-            <Text style={styles.infoMenuText}>Home Page</Text>
-          </TouchableOpacity>
+          <Text style={styles.infoMenuTitle}>
+            @jcrice13/GT_ISM_PartsBookProject
+          </Text>
+          <Text style={styles.infoMenuDescription}>
+            Build for internal distribution.
+          </Text>
           <TouchableOpacity
-            style={styles.infoMenuItem}
-            onPress={goToInformation}
+            style={styles.infoMenuButton}
+            onPress={() => {
+              setShowInfoMenu(false);
+              setShowQRCode(true);
+            }}
           >
-            <Text style={styles.infoMenuText}>Information</Text>
+            <Text style={styles.infoMenuButtonText}>Download for Mobile</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.infoMenuItem}
-            onPress={goToUserSetting}
-          >
-            <Text style={styles.infoMenuText}>User Setting</Text>
+          <TouchableOpacity style={styles.infoMenuButton} onPress={goToHome}>
+            <Text style={styles.infoMenuButtonText}>Go to Home</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -459,6 +456,56 @@ export default function ModelListScreen() {
           </Text>
         </View>
       )}
+      {}
+      <Modal
+        visible={showQRCode}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowQRCode(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View
+            style={[
+              styles.modalContent,
+              { maxWidth: Platform.OS === "web" ? 600 : 500 },
+            ]}
+          >
+            <Text
+              style={[
+                styles.qrHeader,
+                { fontSize: Platform.OS === "web" ? 24 : 18 },
+              ]}
+            >
+              Access on Mobile
+            </Text>
+            <Image
+              source={require("../../assets/images/qr-code.png")}
+              style={[
+                styles.qrImage,
+                {
+                  width: Platform.OS === "web" ? 240 : 280,
+                  height: Platform.OS === "web" ? 240 : 280,
+                },
+              ]}
+            />
+            <Text
+              style={[
+                styles.qrDescription,
+                { fontSize: Platform.OS === "web" ? 16 : 14 },
+              ]}
+            >
+              Scan this QR code with your mobile device to quickly access our
+              website and enjoy a seamless browsing experience on the go.
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowQRCode(false)}
+              style={styles.closeButton}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -485,9 +532,25 @@ const styles = StyleSheet.create({
     borderColor: "#ccc",
     borderRadius: 8,
     zIndex: 999,
+    padding: 10,
   },
-  infoMenuItem: { paddingVertical: 10, paddingHorizontal: 15 },
-  infoMenuText: { fontSize: 16, color: "#333" },
+  infoMenuTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    marginBottom: 5,
+    color: "#283593",
+  },
+  infoMenuDescription: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 10,
+  },
+  infoMenuButton: { paddingVertical: 5 },
+  infoMenuButtonText: {
+    fontSize: 14,
+    color: "#333",
+    textDecorationLine: "underline",
+  },
   searchContainer: { padding: 10, backgroundColor: "#EDEDED" },
   searchBar: {
     backgroundColor: "#fff",
@@ -542,7 +605,12 @@ const styles = StyleSheet.create({
   },
   viewerTitle: { color: "#fff", fontSize: 18, fontWeight: "bold" },
   viewerActions: { flexDirection: "row" },
-  viewerIcon: { width: 25, height: 25, tintColor: "#fff", marginHorizontal: 8 },
+  viewerIcon: {
+    width: 25,
+    height: 25,
+    tintColor: "#fff",
+    marginHorizontal: 8,
+  },
   downloadOverlay: {
     position: "absolute",
     top: 0,
@@ -561,4 +629,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   downloadText: { color: "#fff", marginTop: 10, fontSize: 16 },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 10,
+  },
+  modalContent: {
+    width: "90%",
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    padding: 20,
+    alignItems: "center",
+  },
+  qrHeader: {
+    fontWeight: "bold",
+    color: "#283593",
+    marginBottom: 15,
+  },
+  qrImage: { marginBottom: 15 },
+  qrDescription: {
+    color: "#333",
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  closeButton: {
+    backgroundColor: "#283593",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  closeButtonText: { color: "#fff", fontSize: 14 },
 });
