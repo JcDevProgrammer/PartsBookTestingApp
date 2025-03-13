@@ -17,7 +17,6 @@ const PdfViewer = forwardRef(({ base64Data, uri }, ref) => {
   const [html, setHtml] = useState(null);
 
   useEffect(() => {
-    // On mobile, if base64Data is available, build the custom HTML
     if (Platform.OS === "web") {
       return;
     }
@@ -36,7 +35,6 @@ const PdfViewer = forwardRef(({ base64Data, uri }, ref) => {
     },
   }));
 
-  // Web platform: use iframe
   if (Platform.OS === "web") {
     if (base64Data) {
       return (
@@ -59,7 +57,6 @@ const PdfViewer = forwardRef(({ base64Data, uri }, ref) => {
     }
   }
 
-  // Mobile: show loader until HTML is ready
   if (!base64Data) {
     return (
       <View style={styles.center}>
@@ -75,7 +72,6 @@ const PdfViewer = forwardRef(({ base64Data, uri }, ref) => {
     );
   }
 
-  // Render the WebView with our custom HTML
   return (
     <WebView
       ref={webviewRef}
@@ -87,7 +83,6 @@ const PdfViewer = forwardRef(({ base64Data, uri }, ref) => {
   );
 });
 
-// This function creates a custom HTML page that uses pdf.js with lazy loading
 function createPdfHtml(base64) {
   const htmlLines = [
     "<!DOCTYPE html>",
@@ -186,7 +181,7 @@ function createPdfHtml(base64) {
     "      position: relative;",
     "      margin: 10px auto;",
     "      background: #fff;",
-    "      min-height: 400px;", // placeholder height
+    "      min-height: 400px;",
     "    }",
     "    .pageCanvas {",
     "      display: block;",
