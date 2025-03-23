@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "PartsBook App",
-    "slug": "PartsBook App",
+    "slug": "GT_ISM_PartsBookProject",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
