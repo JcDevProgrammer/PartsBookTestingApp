@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "GT_ISM_PartsBookProject",
-    "slug": "GT_ISM_PartsBookProject",
+    "name": "PartsBook App",
+    "slug": "PartsBook App",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/app-icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,7 +14,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#fffff"
       },
       "package": "com.jcrice13.GT_ISM_PartsBookProject"
     },
