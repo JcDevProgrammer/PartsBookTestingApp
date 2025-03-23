@@ -9,6 +9,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
+import QRCode from "react-native-qrcode-svg"; // Import para sa QR code generation
 
 export default function SelectModelScreen() {
   const router = useRouter();
@@ -58,7 +59,6 @@ export default function SelectModelScreen() {
         </Text>
       </View>
 
-      {}
       {showInfoMenu && (
         <View style={styles.infoMenu}>
           <Text style={styles.infoMenuTitle}>
@@ -67,7 +67,6 @@ export default function SelectModelScreen() {
           <Text style={styles.infoMenuDescription}>
             Build for internal distribution.
           </Text>
-          {}
           <TouchableOpacity
             style={styles.infoMenuButton}
             onPress={() => {
@@ -77,14 +76,12 @@ export default function SelectModelScreen() {
           >
             <Text style={styles.infoMenuButtonText}>Download for Mobile</Text>
           </TouchableOpacity>
-          {}
           <TouchableOpacity style={styles.infoMenuButton} onPress={goToHome}>
             <Text style={styles.infoMenuButtonText}>Go to Home</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {}
       <Modal
         visible={showQRCode}
         animationType="slide"
@@ -92,24 +89,14 @@ export default function SelectModelScreen() {
         onRequestClose={() => setShowQRCode(false)}
       >
         <View style={styles.modalContainer}>
-          <View
-            style={[
-              styles.modalContent,
-              { maxWidth: isWeb ? 600 : 500 }, // Wider on web
-            ]}
-          >
+          <View style={[styles.modalContent, { maxWidth: isWeb ? 600 : 500 }]}>
             <Text style={[styles.qrHeader, { fontSize: isWeb ? 24 : 18 }]}>
               Access on Mobile
             </Text>
-            <Image
-              source={require("../../assets/images/qr-code.png")}
-              style={[
-                styles.qrImage,
-                {
-                  width: isWeb ? 240 : 280,
-                  height: isWeb ? 240 : 280,
-                },
-              ]}
+            {/* Generated permanent QR code */}
+            <QRCode
+              value="https://your-app-download-link.com"
+              size={isWeb ? 240 : 280}
             />
             <Text style={[styles.qrDescription, { fontSize: isWeb ? 16 : 14 }]}>
               Scan this QR code with your mobile device to quickly access our
@@ -129,10 +116,7 @@ export default function SelectModelScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#EDEDED",
-  },
+  container: { flex: 1, backgroundColor: "#EDEDED" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -159,15 +143,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  searchButtonText: {
-    color: "#333",
-    fontSize: 16,
-  },
-  body: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  searchButtonText: { color: "#333", fontSize: 16 },
+  body: { flex: 1, justifyContent: "center", alignItems: "center" },
   bodyText: {
     fontSize: 16,
     color: "#333",
@@ -183,8 +160,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     padding: 10,
     borderRadius: 8,
-    elevation: 5, // Android shadow
-    shadowColor: "#000", // iOS shadow
+    elevation: 5,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
@@ -201,9 +178,7 @@ const styles = StyleSheet.create({
     color: "#666",
     marginBottom: 10,
   },
-  infoMenuButton: {
-    paddingVertical: 5,
-  },
+  infoMenuButton: { paddingVertical: 5 },
   infoMenuButtonText: {
     fontSize: 14,
     color: "#333",
@@ -214,7 +189,6 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
-    // Center the content
     justifyContent: "center",
     alignItems: "center",
     padding: 10,
@@ -231,9 +205,6 @@ const styles = StyleSheet.create({
     color: "#283593",
     marginBottom: 15,
   },
-  qrImage: {
-    marginBottom: 15,
-  },
   qrDescription: {
     color: "#333",
     textAlign: "center",
@@ -246,8 +217,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
   },
-  closeButtonText: {
-    color: "#fff",
-    fontSize: 14,
-  },
+  closeButtonText: { color: "#fff", fontSize: 14 },
 });

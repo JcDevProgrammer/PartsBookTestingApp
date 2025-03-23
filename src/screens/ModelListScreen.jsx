@@ -20,6 +20,7 @@ import * as FileSystem from "expo-file-system";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
 import { storage } from "../config/firebaseConfig";
 import PdfViewer from "../../components/PdfViewer";
+import QRCode from "react-native-qrcode-svg"; // Para sa QR code generation
 
 const FolderItem = React.memo(
   ({ item, isExpanded, onToggleFolder, onOpenFile }) => (
@@ -456,7 +457,6 @@ export default function ModelListScreen() {
           </Text>
         </View>
       )}
-      {}
       <Modal
         visible={showQRCode}
         animationType="slide"
@@ -478,15 +478,9 @@ export default function ModelListScreen() {
             >
               Access on Mobile
             </Text>
-            <Image
-              source={require("../../assets/images/qr-code.png")}
-              style={[
-                styles.qrImage,
-                {
-                  width: Platform.OS === "web" ? 240 : 280,
-                  height: Platform.OS === "web" ? 240 : 280,
-                },
-              ]}
+            <QRCode
+              value="https://your-app-download-link.com"
+              size={Platform.OS === "web" ? 240 : 280}
             />
             <Text
               style={[
