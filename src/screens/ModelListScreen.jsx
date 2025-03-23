@@ -20,7 +20,8 @@ import * as FileSystem from "expo-file-system";
 import { ref, listAll, getDownloadURL } from "firebase/storage";
 import { storage } from "../config/firebaseConfig";
 import PdfViewer from "../../components/PdfViewer";
-import QRCode from "react-native-qrcode-svg"; // Para sa QR code generation
+import QRCode from "react-native-qrcode-svg";
+import { encode } from "base-64"; // Gamitin para sa base64 conversion
 
 const FolderItem = React.memo(
   ({ item, isExpanded, onToggleFolder, onOpenFile }) => (
@@ -210,6 +211,7 @@ export default function ModelListScreen() {
     }
   };
 
+  // Updated handleOpenFile gamit ang base-64 encode para iwas sa "Premature close" error
   const handleOpenFile = async (url) => {
     if (!isOnline) {
       Alert.alert("Offline", "Cannot view PDF offline (needs internet).");
@@ -225,12 +227,12 @@ export default function ModelListScreen() {
       if (!response.ok)
         throw new Error(`Failed to fetch PDF. Status: ${response.status}`);
       const arrayBuffer = await response.arrayBuffer();
-      const base64 = btoa(
-        new Uint8Array(arrayBuffer).reduce(
-          (data, byte) => data + String.fromCharCode(byte),
-          ""
-        )
-      );
+      const uint8Array = new Uint8Array(arrayBuffer);
+      let binary = "";
+      for (let i = 0; i < uint8Array.byteLength; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+      }
+      const base64 = encode(binary);
       setSelectedPdfBase64(base64);
     } catch (error) {
       Alert.alert("Error", "Failed to download PDF: " + error.message);
